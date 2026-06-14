@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const JobDetailsView = ({ job }) => {
+const JobDetailsView = ({ job, applicationCount = 0 }) => {
     if (!job) {
         return (
             <main className="min-h-screen bg-slate-50 px-4 py-12">
@@ -124,6 +124,17 @@ const JobDetailsView = ({ job }) => {
                                     <p><span className="font-medium text-slate-900">Visibility:</span> {job.visibility}</p>
                                     <p><span className="font-medium text-slate-900">Posted:</span> {job.createdAtText}</p>
                                     <p><span className="font-medium text-slate-900">Updated:</span> {job.updatedAtText}</p>
+                                </div>
+
+                             
+                                <div className="mt-6">
+                                    <Link
+                                        href={`/job/${job._id}/apply`}
+                                        className="inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                    >
+                                        Apply now
+                                    </Link>
+                                   
                                 </div>
                             </div>
                         </aside>

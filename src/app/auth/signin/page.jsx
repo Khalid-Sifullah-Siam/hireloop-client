@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 
@@ -26,6 +26,9 @@ const getAuthErrorMessage = (response) =>
 export default function SigninPage() {
 
   const router = useRouter();
+
+  const searchParams = useSearchParams();
+  const redirectTO = searchParams.get('redirect') || '/';
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -66,8 +69,8 @@ export default function SigninPage() {
       }
 
       setSuccess("Login successful!");
-      router.replace("/");
-      router.refresh();
+      router.push(redirectTO);
+
     } catch {
       setError("Something went wrong. Please try again.");
     } finally {
@@ -179,7 +182,7 @@ export default function SigninPage() {
             Don&apos;t have an account?{" "}
 
             <Link
-              href="/auth/signup"
+              href={`/auth/signup?redirect=${redirectTO}`}
               className="text-white inline-flex items-center gap-1 hover:underline"
             >
               Create Account
