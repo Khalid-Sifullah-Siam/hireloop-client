@@ -3,6 +3,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
+import { getSeekerApplications } from "@/lib/api/applications";
+import { getSeekerApplicationLimit } from "@/lib/plan-utils";
+import { getFreshUserPlan } from "@/lib/user-plan-server";
 
 const getApplicationsApiUrl = () => {
     const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
@@ -39,6 +42,14 @@ export async function applyForJob(formData) {
 
     if (!seeker) {
         redirect("/auth/signin");
+    }
+
+    const currentPlan = await getFreshUserPlan(seeker, "seeker_free");
+    const applications = await getSeekerApplications(seeker.id, seeker.email);
+    const applicationLimit = getSeekerApplicationLimit(currentPlan);
+
+    if (applications.length >= applicationLimit) {
+        redirect("/plans?error=Your current plan has reached its monthly application limit");
     }
 
     const payload = Object.fromEntries(formData.entries());

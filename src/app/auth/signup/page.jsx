@@ -15,6 +15,7 @@ import {
 } from "@gravity-ui/icons";
 
 import { authClient } from "@/lib/auth-client";
+import { getDefaultPlanForRole } from "@/lib/plan-utils";
 
 const initialSignupForm = {
   name: "",
@@ -73,6 +74,7 @@ export default function SignupPage() {
         email: formData.email.trim(),
         password: formData.password,
         role: formData.role,
+        plan: getDefaultPlanForRole(formData.role),
       });
 
       if (response.error) {

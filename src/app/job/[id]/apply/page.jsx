@@ -2,6 +2,12 @@ import { auth } from "@/lib/auth";
 import { applyForJob } from "@/lib/actions/applications";
 import { getJobById } from "@/lib/api/jobs";
 import { getSeekerApplications } from "@/lib/api/applications";
+import {
+    formatPlanLimit,
+    getPlanName,
+    getSeekerApplicationLimit,
+} from "@/lib/plan-utils";
+import { getFreshUserPlan } from "@/lib/user-plan-server";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -28,9 +34,10 @@ const ApplyPage = async ({ params }) => {
         );
     }
 
-    const applications = await getSeekerApplications(user.id);
+    const applications = await getSeekerApplications(user.id, user.email);
     const applicationCount = applications.length;
-    const maxApplicationsPerMonth = 3;
+    const seekerPlan = await getFreshUserPlan(user, "seeker_free");
+    const maxApplicationsPerMonth = getSeekerApplicationLimit(seekerPlan);
 
     if (!job) {
         return (
@@ -56,7 +63,7 @@ const ApplyPage = async ({ params }) => {
             <div className="mx-auto max-w-5xl">
                 <div className="mb-6 text-center">
                     <span className="inline-flex rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-semibold text-slate-900 shadow-sm">
-                        You have applied {applicationCount} out of {maxApplicationsPerMonth} jobs
+                        You have applied {applicationCount} out of {formatPlanLimit(maxApplicationsPerMonth)} jobs on the {getPlanName(seekerPlan)} plan
                     </span>
                 </div>
 
@@ -130,8 +137,14 @@ const ApplyPage = async ({ params }) => {
                                     Application limit reached
                                 </h2>
                                 <p className="mt-2 text-sm text-slate-600">
-                                    You have already applied for {maxApplicationsPerMonth} jobs this month, so the form is hidden.
+                                    You have already used all {formatPlanLimit(maxApplicationsPerMonth)} applications from your {getPlanName(seekerPlan)} plan, so the form is hidden.
                                 </p>
+                                <Link
+                                    href="/plans"
+                                    className="mt-5 inline-flex rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                >
+                                    Upgrade plan
+                                </Link>
                             </div>
                         ) : (
                             <>

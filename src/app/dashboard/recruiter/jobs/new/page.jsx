@@ -3,8 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createJob } from "@/lib/actions/jobs";
+import { createJob, getCurrentRecruiterPlanStatus } from "@/lib/actions/jobs";
 import { getCompanies } from "@/lib/actions/companies";
+import { getRecruiterJobs } from "@/lib/api/jobs";
+import { authClient } from "@/lib/auth-client";
+import {
+  formatPlanLimit,
+  getPlanName,
+  getRecruiterJobLimit,
+} from "@/lib/plan-utils";
 import { toast } from "@heroui/react";
 import {
   Briefcase,
@@ -15,20 +22,12 @@ import {
   X,
 } from "lucide-react";
 
-const planLimits = {
-  Free: 3,
-  Growth: 10,
-  Enterprise: 50,
-};
-
 const defaultCompany = {
   id: "",
   name: "",
   logo: "",
   industry: "",
   location: "",
-  plan: "Growth",
-  activeJobs: 0,
   approved: false,
 };
 
@@ -100,8 +99,15 @@ export default function NewJob() {
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
   const [company, setCompany] = useState(defaultCompany);
+  const [activeJobCount, setActiveJobCount] = useState(0);
+  const [planStatus, setPlanStatus] = useState({
+    plan: "recruiter_free",
+    planExpiresAt: null,
+    isExpired: false,
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const router = useRouter();
+  const { data: session, isPending } = authClient.useSession();
 
   useEffect(() => {
     let isActive = true;
@@ -149,14 +155,69 @@ export default function NewJob() {
     }
   }, [companies, selectedCompanyId]);
 
-  const jobLimit = planLimits[company.plan];
-  const remainingSlots = Math.max(jobLimit - company.activeJobs, 0);
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRecruiterJobs = async () => {
+      if (session?.user?.role !== "recruiter") {
+        setActiveJobCount(0);
+        return;
+      }
+
+      try {
+        const jobs = await getRecruiterJobs(session.user.id);
+
+        if (isMounted) {
+          setActiveJobCount(jobs.length);
+        }
+      } catch {
+        if (isMounted) {
+          setActiveJobCount(0);
+        }
+      }
+    };
+
+    loadRecruiterJobs();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, session?.user?.role]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadPlanStatus = async () => {
+      if (session?.user?.role !== "recruiter") {
+        return;
+      }
+
+      const currentPlanStatus = await getCurrentRecruiterPlanStatus();
+
+      if (isMounted) {
+        setPlanStatus(currentPlanStatus);
+      }
+    };
+
+    loadPlanStatus();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [session?.user?.id, session?.user?.role]);
+
+  const recruiterPlan = planStatus.plan;
+  const jobLimit = getRecruiterJobLimit(recruiterPlan);
+  const remainingSlots = Math.max(jobLimit - activeJobCount, 0);
+  const usedSlots = Math.min(activeJobCount, jobLimit);
   const canPublish = remainingSlots > 0;
 
   const statusMessage =
-    remainingSlots === 0
-      ? `This plan has reached its active job limit of ${jobLimit}.`
-      : `You have ${remainingSlots} active slots left on the ${company.plan} plan.`;
+    planStatus.isExpired
+      ? "Your paid plan expired after 30 days. You are back on the Free plan."
+      : remainingSlots === 0
+      ? `Your ${getPlanName(recruiterPlan)} plan has reached its active job limit of ${formatPlanLimit(jobLimit)}.`
+      : `You have ${remainingSlots} active job slots left on the ${getPlanName(recruiterPlan)} plan.`;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -179,7 +240,7 @@ export default function NewJob() {
     formData.append("companyId", company.id);
     formData.append("companyName", company.name);
     formData.append("companyLogo", company.logo || "");
-    formData.append("companyPlan", company.plan);
+    formData.append("companyPlan", getPlanName(recruiterPlan));
     formData.append("companyApproved", company.approved);
     formData.append("status", "active");
     formData.append("visibility", "public");
@@ -192,19 +253,21 @@ export default function NewJob() {
 
     if (result?.success) {
       toast.success("Job post created successfully.");
-
-      setCompany({
-        ...company,
-        activeJobs: company.activeJobs + 1,
-      });
+      setActiveJobCount((currentCount) => currentCount + 1);
 
       e.target.reset();
       setIsRemote(false);
       router.push("/dashboard/recruiter");
+    } else if (result?.message) {
+      toast.error(result.message);
     }
 
     setIsSubmitting(false);
   };
+
+  if (isPending) {
+    return <div className="p-6 text-white">Loading...</div>;
+  }
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-[#0b0b0f] px-4 py-6 text-white sm:px-6 lg:px-8">
@@ -215,10 +278,7 @@ export default function NewJob() {
       </div>
 
       <div className="relative mx-auto max-w-7xl">
-        <form
-          onSubmit={handleSubmit}
-          className="rounded-[32px] border border-white/10 bg-[#111114]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-8"
-        >
+        <div className="rounded-[32px] border border-white/10 bg-[#111114]/95 p-6 shadow-[0_30px_120px_rgba(0,0,0,0.45)] backdrop-blur-xl sm:p-8">
           <div className="flex flex-col gap-4 border-b border-white/10 pb-6 sm:flex-row sm:items-start sm:justify-between">
             <SectionHeader
               icon={Briefcase}
@@ -235,269 +295,318 @@ export default function NewJob() {
             </Link>
           </div>
 
-          <div className="mt-8 grid gap-4 md:grid-cols-2">
-            <Field label="Company" hint="Required" className="md:col-span-2">
-              <div className="relative">
-                <select
-                  value={selectedCompanyId}
-                  onChange={(event) => setSelectedCompanyId(event.target.value)}
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
+                Plan
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {getPlanName(recruiterPlan)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
+                Used
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {usedSlots} / {formatPlanLimit(jobLimit)}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.24em] text-white/35">
+                Remaining
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {formatPlanLimit(remainingSlots)}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/70">
+            {statusMessage}
+          </div>
+
+          {canPublish ? (
+            <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
+              <Field label="Company" hint="Required" className="md:col-span-2">
+                <div className="relative">
+                  <select
+                    value={selectedCompanyId}
+                    onChange={(event) => setSelectedCompanyId(event.target.value)}
+                    required
+                    className={selectClass}
+                  >
+                    {companies.length === 0 ? (
+                      <option value="" className={selectOptionClassName} style={selectOptionStyle}>
+                        No company found
+                      </option>
+                    ) : (
+                      companies.map((item) => (
+                        <option
+                          key={item.id}
+                          value={item.id}
+                          className={selectOptionClassName}
+                          style={selectOptionStyle}
+                        >
+                          {item.name}
+                        </option>
+                      ))
+                    )}
+                  </select>
+
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                </div>
+              </Field>
+
+              <Field label="Job Title" hint="Required" className="md:col-span-2">
+                <input
+                  type="text"
+                  name="jobTitle"
                   required
-                  className={selectClass}
-                >
-                  {companies.length === 0 ? (
-                    <option value="" className={selectOptionClassName} style={selectOptionStyle}>
-                      No company found
-                    </option>
-                  ) : (
-                    companies.map((item) => (
+                  className={inputClass}
+                  placeholder="e.g. Senior Frontend Engineer"
+                />
+              </Field>
+
+              <Field label="Job Category" hint="Required">
+                <div className="relative">
+                  <select
+                    name="category"
+                    required
+                    defaultValue="Technology"
+                    className={selectClass}
+                  >
+                    {categories.map((category) => (
                       <option
-                        key={item.id}
-                        value={item.id}
+                        key={category}
+                        value={category}
                         className={selectOptionClassName}
                         style={selectOptionStyle}
                       >
-                        {item.name}
+                        {category}
                       </option>
-                    ))
-                  )}
-                </select>
+                    ))}
+                  </select>
 
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              </div>
-            </Field>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                </div>
+              </Field>
 
-            <Field label="Job Title" hint="Required" className="md:col-span-2">
-              <input
-                type="text"
-                name="jobTitle"
-                required
-                className={inputClass}
-                placeholder="e.g. Senior Frontend Engineer"
-              />
-            </Field>
+              <Field label="Job Type" hint="Required">
+                <div className="relative">
+                  <select
+                    name="jobType"
+                    required
+                    defaultValue="Full-time"
+                    className={selectClass}
+                  >
+                    {jobTypes.map((type) => (
+                      <option
+                        key={type}
+                        value={type}
+                        className={selectOptionClassName}
+                        style={selectOptionStyle}
+                      >
+                        {type}
+                      </option>
+                    ))}
+                  </select>
 
-            <Field label="Job Category" hint="Required">
-              <div className="relative">
-                <select
-                  name="category"
-                  required
-                  defaultValue="Technology"
-                  className={selectClass}
-                >
-                  {categories.map((category) => (
-                    <option
-                      key={category}
-                      value={category}
-                      className={selectOptionClassName}
-                      style={selectOptionStyle}
-                    >
-                      {category}
-                    </option>
-                  ))}
-                </select>
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                </div>
+              </Field>
 
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              </div>
-            </Field>
-
-            <Field label="Job Type" hint="Required">
-              <div className="relative">
-                <select
-                  name="jobType"
-                  required
-                  defaultValue="Full-time"
-                  className={selectClass}
-                >
-                  {jobTypes.map((type) => (
-                    <option
-                      key={type}
-                      value={type}
-                      className={selectOptionClassName}
-                      style={selectOptionStyle}
-                    >
-                      {type}
-                    </option>
-                  ))}
-                </select>
-
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              </div>
-            </Field>
-
-            <Field label="Minimum Salary" hint="Required">
-              <input
-                type="number"
-                name="minSalary"
-                required
-                min="0"
-                className={inputClass}
-                placeholder="60000"
-              />
-            </Field>
-
-            <Field label="Maximum Salary" hint="Required">
-              <input
-                type="number"
-                name="maxSalary"
-                required
-                min="0"
-                className={inputClass}
-                placeholder="90000"
-              />
-            </Field>
-
-            <Field label="Currency" hint="Required">
-              <div className="relative">
-                <select
-                  name="currency"
-                  required
-                  defaultValue="USD"
-                  className={selectClass}
-                >
-                  {currencies.map((currency) => (
-                    <option
-                      key={currency}
-                      value={currency}
-                      className={selectOptionClassName}
-                      style={selectOptionStyle}
-                    >
-                      {currency}
-                    </option>
-                  ))}
-                </select>
-
-                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-              </div>
-            </Field>
-
-            <Field label={isRemote ? "Remote location hint" : "Location"}>
-              <div className="relative">
-                <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-
+              <Field label="Minimum Salary" hint="Required">
                 <input
-                  type="text"
-                  name="location"
-                  required={!isRemote}
-                  defaultValue="Dhaka, Bangladesh"
-                  className={`${inputClass} pl-11`}
-                  placeholder={
-                    isRemote ? "e.g. UTC, APAC, Worldwide" : "City, Country"
-                  }
+                  type="number"
+                  name="minSalary"
+                  required
+                  min="0"
+                  className={inputClass}
+                  placeholder="60000"
                 />
-              </div>
-            </Field>
+              </Field>
 
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-white">
-                    Remote toggle
-                  </p>
-                  <p className="mt-1 text-xs leading-5 text-white/45">
-                    Flip this on for remote or hybrid roles.
-                  </p>
+              <Field label="Maximum Salary" hint="Required">
+                <input
+                  type="number"
+                  name="maxSalary"
+                  required
+                  min="0"
+                  className={inputClass}
+                  placeholder="90000"
+                />
+              </Field>
+
+              <Field label="Currency" hint="Required">
+                <div className="relative">
+                  <select
+                    name="currency"
+                    required
+                    defaultValue="USD"
+                    className={selectClass}
+                  >
+                    {currencies.map((currency) => (
+                      <option
+                        key={currency}
+                        value={currency}
+                        className={selectOptionClassName}
+                        style={selectOptionStyle}
+                      >
+                        {currency}
+                      </option>
+                    ))}
+                  </select>
+
+                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+                </div>
+              </Field>
+
+              <Field label={isRemote ? "Remote location hint" : "Location"}>
+                <div className="relative">
+                  <MapPin className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+
+                  <input
+                    type="text"
+                    name="location"
+                    required={!isRemote}
+                    defaultValue="Dhaka, Bangladesh"
+                    className={`${inputClass} pl-11`}
+                    placeholder={
+                      isRemote ? "e.g. UTC, APAC, Worldwide" : "City, Country"
+                    }
+                  />
+                </div>
+              </Field>
+
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-white">
+                      Remote toggle
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-white/45">
+                      Flip this on for remote or hybrid roles.
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsRemote(!isRemote)}
+                    className={`relative h-7 w-12 shrink-0 rounded-full border transition ${
+                      isRemote
+                        ? "border-[#6fb7ff]/50 bg-[#0a84ff]"
+                        : "border-white/10 bg-white/10"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                        isRemote ? "left-6" : "left-1"
+                      }`}
+                    />
+                  </button>
                 </div>
 
+                <div className="mt-4 flex items-center gap-2 text-xs text-white/55">
+                  {isRemote ? (
+                    <Globe2 className="h-4 w-4 text-[#7ebfff]" />
+                  ) : (
+                    <MapPin className="h-4 w-4 text-white/45" />
+                  )}
+
+                  <span>
+                    {isRemote ? "Remote role enabled" : "Office or hybrid role"}
+                  </span>
+                </div>
+              </div>
+
+              <Field
+                label="Application Deadline"
+                hint="Required"
+                className="md:col-span-2"
+              >
+                <div className="relative">
+                  <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
+
+                  <input
+                    type="date"
+                    name="deadline"
+                    required
+                    className={`${inputClass} pl-11 [color-scheme:dark]`}
+                  />
+                </div>
+              </Field>
+
+              <Field label="Responsibilities" hint="Required">
+                <textarea
+                  name="responsibilities"
+                  required
+                  className={textareaClass}
+                  placeholder="Write the core responsibilities for this role..."
+                />
+              </Field>
+
+              <Field label="Requirements" hint="Required">
+                <textarea
+                  name="requirements"
+                  required
+                  className={textareaClass}
+                  placeholder="List the must-have skills, experience, and qualifications..."
+                />
+              </Field>
+
+              <Field label="Benefits" hint="Optional" className="md:col-span-2">
+                <textarea
+                  name="benefits"
+                  className={textareaClass}
+                  placeholder="Add perks, learning opportunities, flexible hours, and other benefits..."
+                />
+              </Field>
+
+              <div className="md:col-span-2 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm leading-6 text-white/50">
+                  When you submit, the job is saved as{" "}
+                  <span className="text-white">active</span> and made publicly
+                  visible.
+                </p>
+
                 <button
-                  type="button"
-                  onClick={() => setIsRemote(!isRemote)}
-                  className={`relative h-7 w-12 shrink-0 rounded-full border transition ${
-                    isRemote
-                      ? "border-[#6fb7ff]/50 bg-[#0a84ff]"
-                      : "border-white/10 bg-white/10"
+                  type="submit"
+                  disabled={isSubmitting}
+                  className={`inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold transition ${
+                    !isSubmitting
+                      ? "bg-white text-slate-950 hover:bg-slate-200"
+                      : "cursor-not-allowed bg-white/20 text-white/40"
                   }`}
                 >
-                  <span
-                    className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
-                      isRemote ? "left-6" : "left-1"
-                    }`}
-                  />
+                  {isSubmitting ? "Publishing..." : "Publish Job"}
                 </button>
               </div>
-
-              <div className="mt-4 flex items-center gap-2 text-xs text-white/55">
-                {isRemote ? (
-                  <Globe2 className="h-4 w-4 text-[#7ebfff]" />
-                ) : (
-                  <MapPin className="h-4 w-4 text-white/45" />
-                )}
-
-                <span>
-                  {isRemote ? "Remote role enabled" : "Office or hybrid role"}
-                </span>
-              </div>
+            </form>
+          ) : (
+            <div className="mt-8 rounded-3xl border border-amber-400/20 bg-amber-400/10 p-6">
+              <p className="text-lg font-semibold text-white">
+                Limit sas
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Your {getPlanName(recruiterPlan)} plan already used all{" "}
+                {formatPlanLimit(jobLimit)} job create quota.
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Plan upgrade koro to create more jobs.
+              </p>
+              <Link
+                href="/plans"
+                className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              >
+                Upgrade plan
+              </Link>
             </div>
+          )}
 
-            <Field
-              label="Application Deadline"
-              hint="Required"
-              className="md:col-span-2"
-            >
-              <div className="relative">
-                <CalendarDays className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
-
-                <input
-                  type="date"
-                  name="deadline"
-                  required
-                  className={`${inputClass} pl-11 [color-scheme:dark]`}
-                />
-              </div>
-            </Field>
-
-            <Field label="Responsibilities" hint="Required">
-              <textarea
-                name="responsibilities"
-                required
-                className={textareaClass}
-                placeholder="Write the core responsibilities for this role..."
-              />
-            </Field>
-
-            <Field label="Requirements" hint="Required">
-              <textarea
-                name="requirements"
-                required
-                className={textareaClass}
-                placeholder="List the must-have skills, experience, and qualifications..."
-              />
-            </Field>
-
-            <Field label="Benefits" hint="Optional" className="md:col-span-2">
-              <textarea
-                name="benefits"
-                className={textareaClass}
-                placeholder="Add perks, learning opportunities, flexible hours, and other benefits..."
-              />
-            </Field>
-          </div>
-
-          <div className="mt-8 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-white/50">
-              When you submit, the job is saved as{" "}
-              <span className="text-white">active</span> and made publicly
-              visible.
-            </p>
-
-            <button
-              type="submit"
-              disabled={!canPublish || isSubmitting}
-              className={`inline-flex h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold transition ${
-                canPublish && !isSubmitting
-                  ? "bg-white text-slate-950 hover:bg-slate-200"
-                  : "cursor-not-allowed bg-white/20 text-white/40"
-              }`}
-            >
-              {isSubmitting ? "Publishing..." : "Publish Job"}
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-2xl border border-emerald-400/20 bg-emerald-400/10 px-4 py-3 text-sm text-emerald-100">
-            {company.id
-              ? statusMessage
-              : "Please create a company before posting jobs."}
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

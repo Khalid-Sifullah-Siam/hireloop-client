@@ -1,44 +1,89 @@
-'use client';
+"use client";
 
 import { useState } from "react";
-import { Button, Card, Switch } from "@heroui/react";
+import Link from "next/link";
+import { Button, Card } from "@heroui/react";
 
-const plans = [
+const jobSeekerPlans = [
   {
-    name: "Starter",
+    name: "Free",
+    id: "seeker_free",
     price: "$0",
+    time: "forever",
     features: [
-      "Daily AI match brief (top 5)",
-      "Verified salary bands",
-      "Company insight dashboards",
-      "1-click apply, unlimited",
+      "Browse & save up to 10 jobs",
+      "Apply to up to 3 jobs per month",
+      "Basic profile",
+      "Email alerts",
     ],
   },
   {
-    name: "Growth",
-    price: "$17",
+    name: "Pro",
+    id: "seeker_pro",
+    price: "$19",
+    time: "month",
     features: [
-      "Daily AI match brief (top 5)",
-      "Verified salary bands",
-      "Company insight dashboards",
-      "1-click apply, unlimited",
+      "Apply to up to 30 jobs per month",
+      "Unlimited saved jobs",
+      "Application tracking",
+      "Salary insights",
     ],
     highlight: true,
   },
   {
     name: "Premium",
-    price: "$99",
+    id: "seeker_premium",
+    price: "$39",
+    time: "month",
     features: [
-      "Everything in Growth",
-      "Multi-profile career portfolios",
-      "Shared talent rooms",
-      "Recruiter view (read-only)",
+      "Everything in Pro",
+      "Unlimited applications",
+      "Profile boost to recruiters",
+      "Early access to new jobs",
+      "Priority support",
+    ],
+  },
+];
+
+const recruiterPlans = [
+  {
+    name: "Free",
+    id: "recruiter_free",
+    price: "$0",
+    time: "forever",
+    features: [
+      "Up to 3 active job posts, basic applicant management, standard listing visibility (great for a company's first year of hiring)",
+    ],
+  },
+  {
+    name: "Growth",
+    id: "recruiter_growth",
+    price: "$49",
+    time: "month",
+    features: [
+      "Up to 10 active job posts, applicant tracking, basic analytics, email support",
+    ],
+    highlight: true,
+  },
+  {
+    name: "Enterprise",
+    id: "recruiter_enterprise",
+    price: "$149",
+    time: "month",
+    features: [
+      "Up to 50 active job posts, advanced analytics dashboard, featured job listings, team collaboration, custom branding, priority support",
     ],
   },
 ];
 
 export default function PricingSection() {
-  const [isYearly, setIsYearly] = useState(false);
+  const [activePlanType, setActivePlanType] = useState("jobSeeker");
+
+  const plans =
+    activePlanType === "jobSeeker" ? jobSeekerPlans : recruiterPlans;
+
+  const sectionTitle =
+    activePlanType === "jobSeeker" ? "For Job Seekers" : "For Recruiters";
 
   return (
     <section className="bg-[#0f0f0f] px-6 py-20">
@@ -47,25 +92,35 @@ export default function PricingSection() {
           Pricing
         </p>
         <h2 className="mb-8 text-4xl font-bold text-white md:text-5xl">
-          Pay for the leverage, not the listings
+          Pricing Plans
         </h2>
 
-        <div className="mb-12 flex items-center justify-center gap-4">
-          <span className={!isYearly ? "text-white" : "text-gray-500"}>
-            Monthly
-          </span>
-          <Switch
-            color="secondary"
-            isSelected={isYearly}
-            onValueChange={setIsYearly}
-          />
-          <span className={isYearly ? "text-white" : "text-gray-500"}>
-            Yearly
-            <span className="ml-1 rounded-full bg-purple-600 px-2 py-1 text-xs text-white">
-              25%
-            </span>
-          </span>
+        <div className="mx-auto mb-10 flex max-w-md rounded-lg border border-gray-800 bg-[#1a1a1a] p-1">
+          <button
+            type="button"
+            onClick={() => setActivePlanType("jobSeeker")}
+            className={`w-1/2 rounded-md px-4 py-3 text-sm font-semibold ${
+              activePlanType === "jobSeeker"
+                ? "bg-white text-black"
+                : "text-gray-400"
+            }`}
+          >
+            Job Seekers
+          </button>
+          <button
+            type="button"
+            onClick={() => setActivePlanType("recruiter")}
+            className={`w-1/2 rounded-md px-4 py-3 text-sm font-semibold ${
+              activePlanType === "recruiter"
+                ? "bg-white text-black"
+                : "text-gray-400"
+            }`}
+          >
+            Recruiters
+          </button>
         </div>
+
+        <h3 className="mb-8 text-2xl font-bold text-white">{sectionTitle}</h3>
 
         <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {plans.map((plan) => (
@@ -81,7 +136,7 @@ export default function PricingSection() {
                   <span className="text-4xl font-bold text-white">
                     {plan.price}
                   </span>
-                  <span className="text-gray-500">/month</span>
+                  <span className="text-gray-500">/{plan.time}</span>
                 </div>
 
                 <ul className="mb-8 space-y-4">
@@ -96,14 +151,42 @@ export default function PricingSection() {
                   ))}
                 </ul>
 
-                <Button
-                  className={`w-full ${
-                    plan.highlight ? "bg-white text-black" : "bg-[#2a2a2a] text-white"
-                  }`}
-                  radius="sm"
-                >
-                  Choose This Plan -&gt;
-                </Button>
+                {plan.price === "$0" ? (
+                  <Link
+                    href="/auth/signup"
+                    className={`inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-semibold ${
+                      plan.highlight
+                        ? "bg-white text-black"
+                        : "bg-[#2a2a2a] text-white"
+                    }`}
+                  >
+                    Start Free
+                  </Link>
+                ) : (
+                  <form action="/api/checkout_sessions" method="POST">
+                    <section>
+                      <input
+                        type="hidden"
+                        name="planId"
+                        value={plan.id}
+                      />
+                      <Button
+                        className={`w-full ${
+                          plan.highlight
+                            ? "bg-white text-black"
+                            : "bg-[#2a2a2a] text-white"
+                        }`}
+                        radius="sm"
+                        type="submit"
+                        role="link"
+                      >
+                        Checkout This Plan -&gt;
+                      </Button>
+                    </section>
+                  </form>
+                )}
+
+             
               </div>
             </Card>
           ))}

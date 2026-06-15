@@ -21,6 +21,22 @@ export const auth = betterAuth({
         required: false,
         defaultValue: defaultUserRole,
       },
+      plan: {
+        type: "string",
+        input: true,
+        required: true,
+        defaultValue: "seeker_free",
+      },
+      planStartedAt: {
+        type: "date",
+        input: false,
+        required: false,
+      },
+      planExpiresAt: {
+        type: "date",
+        input: false,
+        required: false,
+      },
     },
   },
 });

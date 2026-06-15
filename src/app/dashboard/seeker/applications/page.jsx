@@ -3,6 +3,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getSeekerApplications } from "@/lib/api/applications";
+import {
+    formatPlanLimit,
+    getPlanName,
+    getSeekerApplicationLimit,
+} from "@/lib/plan-utils";
+import { getFreshUserPlan } from "@/lib/user-plan-server";
 
 const ApplicationsPage = async ({ searchParams }) => {
     const params = await searchParams;
@@ -23,8 +29,9 @@ const ApplicationsPage = async ({ searchParams }) => {
         );
     }
 
-    const applications = await getSeekerApplications(user.id);
-    const visibleApplications = applications.slice(0, 3);
+    const applications = await getSeekerApplications(user.id, user.email);
+    const seekerPlan = await getFreshUserPlan(user, "seeker_free");
+    const applicationLimit = getSeekerApplicationLimit(seekerPlan);
 
     return (
         <section className="mx-auto max-w-5xl">
@@ -36,7 +43,7 @@ const ApplicationsPage = async ({ searchParams }) => {
                     Jobs you applied to
                 </h1>
                 <p className="mt-2 text-sm text-slate-600">
-                    Showing up to 3 jobs that you applied for.
+                    You can apply to {formatPlanLimit(applicationLimit)} jobs on your {getPlanName(seekerPlan)} plan. Your old applications stay here.
                 </p>
             </div>
 
@@ -52,7 +59,7 @@ const ApplicationsPage = async ({ searchParams }) => {
                 </p>
             ) : null}
 
-            {visibleApplications.length === 0 ? (
+            {applications.length === 0 ? (
                 <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
                     <h2 className="text-xl font-bold text-slate-900">No applications yet</h2>
                     <p className="mt-2 text-sm text-slate-600">
@@ -67,7 +74,7 @@ const ApplicationsPage = async ({ searchParams }) => {
                 </div>
             ) : (
                 <div className="space-y-4">
-                    {visibleApplications.map((application) => (
+                    {applications.map((application) => (
                         <article
                             key={application._id}
                             className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"

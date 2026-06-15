@@ -2,6 +2,12 @@ import { getJobById } from "@/lib/api/jobs";
 import { getSeekerApplications } from "@/lib/api/applications";
 import { auth } from "@/lib/auth";
 import JobDetailsView from "@/Components/Jobs/JobDetailsView";
+import {
+    formatPlanLimit,
+    getPlanName,
+    getSeekerApplicationLimit,
+} from "@/lib/plan-utils";
+import { getFreshUserPlan } from "@/lib/user-plan-server";
 import { headers } from "next/headers";
 import Link from "next/link";
 
@@ -15,10 +21,13 @@ const JobDetailsPage = async ({ params }) => {
 
     const user = session?.user;
     let applicationCount = 0;
-    const maxApplicationsPerMonth = 3;
+    const seekerPlan = user?.role === "seeker"
+        ? await getFreshUserPlan(user, "seeker_free")
+        : "seeker_free";
+    const maxApplicationsPerMonth = getSeekerApplicationLimit(seekerPlan);
 
     if (user?.role === "seeker") {
-        const applications = await getSeekerApplications(user.id);
+        const applications = await getSeekerApplications(user.id, user.email);
         applicationCount = applications.length;
     }
 
@@ -26,7 +35,7 @@ const JobDetailsPage = async ({ params }) => {
         <main className="bg-slate-50">
             <div className="mx-auto max-w-5xl px-4 pt-4 text-center sm:px-6 lg:px-8">
                 <span className="inline-flex rounded-2xl border border-slate-200 bg-white px-5 py-4 text-base font-semibold text-slate-900 shadow-sm">
-                    You have applied {applicationCount} out of {maxApplicationsPerMonth} jobs
+                    You have applied {applicationCount} out of {formatPlanLimit(maxApplicationsPerMonth)} jobs on the {getPlanName(seekerPlan)} plan
                 </span>
             </div>
 
@@ -35,7 +44,7 @@ const JobDetailsPage = async ({ params }) => {
                     <div className="rounded-3xl border border-amber-200 bg-amber-50 p-8 text-center">
                         <h1 className="text-2xl font-bold text-slate-900">Application limit reached</h1>
                         <p className="mt-2 text-sm text-slate-600">
-                            You have already applied for {maxApplicationsPerMonth} jobs this month.
+                            You have already applied for {formatPlanLimit(maxApplicationsPerMonth)} jobs on your {getPlanName(seekerPlan)} plan.
                         </p>
 
                         <Link

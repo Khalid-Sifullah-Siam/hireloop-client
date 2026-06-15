@@ -23,7 +23,7 @@ const makeApplication = (application) => {
     };
 };
 
-export const getSeekerApplications = async (seekerId) => {
+export const getSeekerApplications = async (seekerId, seekerEmail = "") => {
     const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
     if (!serverUrl) {
@@ -34,7 +34,16 @@ export const getSeekerApplications = async (seekerId) => {
         return [];
     }
 
-    const response = await fetch(`${serverUrl}/applications/seeker/${seekerId}`, {
+    const searchParams = new URLSearchParams();
+
+    if (seekerEmail) {
+        searchParams.set("email", seekerEmail);
+    }
+
+    const queryString = searchParams.toString();
+    const apiUrl = `${serverUrl}/applications/seeker/${seekerId}${queryString ? `?${queryString}` : ""}`;
+
+    const response = await fetch(apiUrl, {
         cache: "no-store",
     });
 

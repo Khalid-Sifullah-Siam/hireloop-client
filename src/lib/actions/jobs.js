@@ -2,6 +2,9 @@
 
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getRecruiterJobs } from "@/lib/api/jobs";
+import { getRecruiterJobLimit } from "@/lib/plan-utils";
+import { getFreshUserPlanStatus } from "@/lib/user-plan-server";
 
 const toBoolean = (value) => value === true || value === "true" || value === "on";
 
@@ -61,6 +64,19 @@ export async function createJob(jobFormData) {
         };
     }
 
+    const activeJobs = await getRecruiterJobs(recruiter.id);
+    const planStatus = await getFreshUserPlanStatus(recruiter, "recruiter_free");
+    const jobLimit = getRecruiterJobLimit(planStatus.plan);
+
+    if (activeJobs.length >= jobLimit) {
+        return {
+            success: false,
+            message: planStatus.isExpired
+                ? "Your paid plan expired after 30 days. Please upgrade again to post more jobs."
+                : "Your current recruiter plan has reached its active job post limit.",
+        };
+    }
+
     const res = await fetch(getJobsApiUrl(), {
         method: 'POST',
         headers: {
@@ -79,4 +95,18 @@ export async function createJob(jobFormData) {
         success: res.ok,
         message: data?.message || (res.ok ? "Job posted successfully." : "Failed to post job."),
     };
+}
+
+export async function getCurrentRecruiterPlanStatus() {
+    const recruiter = await getCurrentRecruiter();
+
+    if (!recruiter) {
+        return {
+            plan: "recruiter_free",
+            planExpiresAt: null,
+            isExpired: false,
+        };
+    }
+
+    return getFreshUserPlanStatus(recruiter, "recruiter_free");
 }
