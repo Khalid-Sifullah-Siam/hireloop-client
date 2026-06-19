@@ -77,6 +77,13 @@ export async function createJob(jobFormData) {
         };
     }
 
+    if (!payload.companyApproved) {
+        return {
+            success: false,
+            message: "Please wait to get approval.",
+        };
+    }
+
     const res = await fetch(getJobsApiUrl(), {
         method: 'POST',
         headers: {

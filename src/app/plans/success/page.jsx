@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation'
-import { ObjectId } from 'mongodb'
 
-import { db } from '@/lib/db'
 import { getPlanName } from '@/lib/plan-utils'
-import { stripe } from '@/lib/stripe'
 import { getPlanExpireDate } from '@/lib/user-plan-server'
 
 export default async function Success({ searchParams }) {
@@ -13,9 +10,21 @@ export default async function Success({ searchParams }) {
     throw new Error('Please provide a valid session_id (`cs_test_...`)')
   }
 
-  const session = await stripe.checkout.sessions.retrieve(session_id, {
-    expand: ['line_items', 'payment_intent'],
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL
+
+  if (!serverUrl) {
+    throw new Error('NEXT_PUBLIC_SERVER_URL is missing from your environment variables.')
+  }
+
+  const sessionResponse = await fetch(`${serverUrl}/checkout_sessions/${session_id}`, {
+    cache: 'no-store',
   })
+
+  if (!sessionResponse.ok) {
+    redirect('/plans')
+  }
+
+  const session = await sessionResponse.json()
 
   if (session.status === 'open') {
     redirect('/')
@@ -29,38 +38,29 @@ export default async function Success({ searchParams }) {
   const planName = getPlanName(planId)
   const customerEmail =
     session.customer_details?.email || session.customer_email || 'your email'
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL
 
   if (session.metadata?.userId && planId) {
     const userId = session.metadata.userId
     const userRole = session.metadata?.role || ''
-    const userFilters = [{ id: userId }]
     const planStartedAt = new Date()
     const planExpiresAt = getPlanExpireDate()
 
-    if (ObjectId.isValid(userId)) {
-      userFilters.push({ _id: new ObjectId(userId) })
-    }
-
-    if (customerEmail !== 'your email') {
-      userFilters.push({ email: customerEmail })
-    }
-
-    await db.collection('user').updateOne(
-      { $or: userFilters },
-      {
-        $set: {
-          plan: planId,
+    if (serverUrl) {
+      await fetch(`${serverUrl}/users/plan`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store',
+        body: JSON.stringify({
+          userId,
+          userEmail: customerEmail === 'your email' ? '' : customerEmail,
+          planId,
           planStartedAt,
           planExpiresAt,
-        },
-        $unset: {
-          planExpiredAt: '',
-        },
-      }
-    )
+        }),
+      })
 
-    if (serverUrl) {
       await fetch(`${serverUrl}/plans`, {
         method: 'POST',
         headers: {

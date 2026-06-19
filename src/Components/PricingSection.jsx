@@ -76,8 +76,9 @@ const recruiterPlans = [
   },
 ];
 
-export default function PricingSection() {
+export default function PricingSection({ currentUser = null }) {
   const [activePlanType, setActivePlanType] = useState("jobSeeker");
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "";
 
   const plans =
     activePlanType === "jobSeeker" ? jobSeekerPlans : recruiterPlans;
@@ -151,25 +152,28 @@ export default function PricingSection() {
                   ))}
                 </ul>
 
-                {plan.price === "$0" ? (
+                {plan.price === "$0" || !currentUser ? (
                   <Link
-                    href="/auth/signup"
+                    href={currentUser ? "/jobs" : "/auth/signin"}
                     className={`inline-flex w-full items-center justify-center rounded-md px-4 py-3 text-sm font-semibold ${
                       plan.highlight
                         ? "bg-white text-black"
                         : "bg-[#2a2a2a] text-white"
                     }`}
                   >
-                    Start Free
+                    {plan.price === "$0" ? "Start Free" : "Sign in to checkout"}
                   </Link>
                 ) : (
-                  <form action="/api/checkout_sessions" method="POST">
+                  <form action={`${serverUrl}/checkout_sessions`} method="POST">
                     <section>
                       <input
                         type="hidden"
                         name="planId"
                         value={plan.id}
                       />
+                      <input type="hidden" name="userId" value={currentUser.id} />
+                      <input type="hidden" name="userEmail" value={currentUser.email} />
+                      <input type="hidden" name="userRole" value={currentUser.role || ""} />
                       <Button
                         className={`w-full ${
                           plan.highlight

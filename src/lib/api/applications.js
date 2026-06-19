@@ -16,6 +16,7 @@ const makeApplication = (application) => {
     return {
         _id: application._id?.toString(),
         status: application.status || "submitted",
+        appliedAt: application.appliedAt || application.createdAt || null,
         appliedAtText: formatDate(application.appliedAt || application.createdAt),
         userInfo: application.userInfo || {},
         jobInfo: application.jobInfo || {},

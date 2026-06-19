@@ -1,31 +1,11 @@
-import { db } from "@/lib/db";
-import { ObjectId } from "mongodb";
-import { getDefaultPlanForRole } from "@/lib/plan-utils";
+const getUsersApiUrl = () => {
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
-const getUserFilters = (user) => {
-  const userFilters = [];
-
-  if (user?.id) {
-    userFilters.push({ id: user.id });
-
-    if (ObjectId.isValid(user.id)) {
-      userFilters.push({ _id: new ObjectId(user.id) });
-    }
+  if (!serverUrl) {
+    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
   }
 
-  if (user?.email) {
-    userFilters.push({ email: user.email });
-  }
-
-  return userFilters;
-};
-
-const isPlanExpired = (planExpiresAt) => {
-  if (!planExpiresAt) {
-    return false;
-  }
-
-  return new Date(planExpiresAt).getTime() <= Date.now();
+  return `${serverUrl}/users`;
 };
 
 export function getPlanExpireDate() {
@@ -50,9 +30,7 @@ export async function getFreshUserPlanStatus(user, fallbackPlan = "seeker_free")
     };
   }
 
-  const userFilters = getUserFilters(user);
-
-  if (userFilters.length === 0) {
+  if (!user.id && !user.email) {
     return {
       plan: user.plan || fallbackPlan,
       planExpiresAt: user.planExpiresAt || null,
@@ -60,36 +38,25 @@ export async function getFreshUserPlanStatus(user, fallbackPlan = "seeker_free")
     };
   }
 
-  const usersCollection = db.collection("user");
-  const savedUser = await usersCollection.findOne({ $or: userFilters });
-  const currentUser = savedUser || user;
-  const freePlan = getDefaultPlanForRole(currentUser.role || user.role);
+  const response = await fetch(`${getUsersApiUrl()}/plan-status`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    cache: "no-store",
+    body: JSON.stringify({
+      user,
+      fallbackPlan,
+    }),
+  });
 
-  if (isPlanExpired(currentUser.planExpiresAt)) {
-    await usersCollection.updateOne(
-      { $or: userFilters },
-      {
-        $set: {
-          plan: freePlan,
-          planExpiredAt: new Date(),
-        },
-        $unset: {
-          planExpiresAt: "",
-          planStartedAt: "",
-        },
-      }
-    );
-
+  if (!response.ok) {
     return {
-      plan: freePlan,
-      planExpiresAt: null,
-      isExpired: true,
+      plan: user.plan || fallbackPlan,
+      planExpiresAt: user.planExpiresAt || null,
+      isExpired: false,
     };
   }
 
-  return {
-    plan: currentUser.plan || fallbackPlan,
-    planExpiresAt: currentUser.planExpiresAt || null,
-    isExpired: false,
-  };
+  return response.json();
 }

@@ -1,23 +1,18 @@
-'use client';
-
 import DashboardStats from "@/Components/Dashboard/DashboardStats";
-import { authClient } from "@/lib/auth-client";
-import { CheckCircle, FileText, Users, Zap } from "lucide-react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
 const recruiterStats = [
-  { title: "Total Job Posts", value: "48", icon: FileText },
-  { title: "Total Applicants", value: "1,284", icon: Users },
-  { title: "Active Jobs", value: "18", icon: Zap },
-  { title: "Jobs Closed", value: "32", icon: CheckCircle },
+  { title: "Total Job Posts", value: "48", iconName: "fileText" },
+  { title: "Total Applicants", value: "1,284", iconName: "users" },
+  { title: "Active Jobs", value: "18", iconName: "zap" },
+  { title: "Jobs Closed", value: "32", iconName: "checkCircle" },
 ];
 
-export default function RecruiterDashboardHomePage() {
-  const { data: session, isPending } = authClient.useSession();
-
-  if (isPending) {
-    return <h1>Loading...</h1>;
-  }
-
+export default async function RecruiterDashboardHomePage() {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
   const user = session?.user;
 
   return (

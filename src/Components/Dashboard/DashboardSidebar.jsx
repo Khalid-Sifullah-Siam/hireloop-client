@@ -7,10 +7,11 @@ import {
   LayoutSideContentLeft,
   Magnifier,
   Person,
+  Star,
 } from "@gravity-ui/icons";
 import { Button, Drawer } from "@heroui/react";
 
-const navItems = [
+const recruiterNavItems = [
   { icon: House, label: "Home", href: "/dashboard/recruiter" },
   { icon: Magnifier, label: "Jobs", href: "/dashboard/recruiter/jobs" },
   { icon: Bell, label: "Create a job", href: "/dashboard/recruiter/jobs/new" },
@@ -19,11 +20,19 @@ const navItems = [
   { icon: Gear, label: "Settings", href: "#" },
 ];
 
-export default function DashboardSidebar() {
+const seekerNavItems = [
+  { icon: Magnifier, label: "Jobs", href: "/dashboard/seeker/jobs" },
+  { icon: Star, label: "Saved Jobs", href: "/dashboard/seeker/saved-jobs" },
+  { icon: Person, label: "Applications", href: "/dashboard/seeker/applications" },
+  { icon: Bell, label: "Billing", href: "/dashboard/seeker/billing" },
+  { icon: Gear, label: "Settings", href: "/dashboard/seeker/settings" },
+];
+
+export default function DashboardSidebar({ role = "recruiter" }) {
   return (
     <>
       <aside className="hidden w-64 shrink-0 border-r border-default p-4 lg:block">
-        <SidebarLinks />
+        <SidebarLinks role={role} />
       </aside>
 
       <Drawer>
@@ -39,7 +48,7 @@ export default function DashboardSidebar() {
                 <Drawer.Heading>Navigation</Drawer.Heading>
               </Drawer.Header>
               <Drawer.Body>
-                <SidebarLinks />
+                <SidebarLinks role={role} />
               </Drawer.Body>
             </Drawer.Dialog>
           </Drawer.Content>
@@ -49,7 +58,9 @@ export default function DashboardSidebar() {
   );
 }
 
-function SidebarLinks() {
+function SidebarLinks({ role }) {
+  const navItems = role === "seeker" ? seekerNavItems : recruiterNavItems;
+
   return (
     <nav className="flex flex-col gap-1">
       {navItems.map((item) => {

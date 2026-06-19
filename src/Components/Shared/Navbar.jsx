@@ -25,6 +25,8 @@ const navLinks = [
   },
 ];
 
+
+
 export default function Navbar() {
   const pathname = usePathname();
 
@@ -35,6 +37,13 @@ export default function Navbar() {
   const { data: session, isPending } = authClient.useSession();
 
   const user = session?.user;
+
+  const dashboardHref = user?.role === "admin"
+    ? "/dashboard/admin"
+    : user?.role === "recruiter"
+      ? "/dashboard/recruiter"
+      : "/dashboard/seeker";
+  const dashboardLabel = "Dashboard";
 
   const isActive = (href) => pathname === href;
 
@@ -99,6 +108,13 @@ export default function Navbar() {
                 <p className="text-sm font-medium text-white">
                   Hi, {user.name || user.email || 'User'}
                 </p>
+
+                <Link
+                  href={dashboardHref}
+                  className="rounded-xl border border-white/10 px-4 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
+                >
+                  {dashboardLabel}
+                </Link>
 
                 <Button
                   
@@ -198,6 +214,14 @@ export default function Navbar() {
                   <div className="rounded-xl border border-white/10 px-4 py-3 text-sm text-white">
                     Hi, {user.name || user.email || 'User'}
                   </div>
+
+                  <Link
+                    href={dashboardHref}
+                    onClick={() => setIsMenuOpen(false)}
+                    className="flex items-center justify-center rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-white transition hover:bg-white/5"
+                  >
+                    {dashboardLabel}
+                  </Link>
 
                   <Button
                   

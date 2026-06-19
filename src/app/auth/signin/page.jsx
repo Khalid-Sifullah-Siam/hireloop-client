@@ -23,6 +23,14 @@ const initialSigninForm = {
 const getAuthErrorMessage = (response) =>
   response?.error?.message || "Something went wrong. Please try again.";
 
+const getRedirectPathAfterLogin = (redirectTO) => {
+  if (redirectTO && redirectTO !== "/") {
+    return redirectTO;
+  }
+  
+  return "/";
+};
+
 export default function SigninPage() {
 
   const router = useRouter();
@@ -69,7 +77,7 @@ export default function SigninPage() {
       }
 
       setSuccess("Login successful!");
-      router.push(redirectTO);
+      router.push(getRedirectPathAfterLogin(redirectTO));
 
     } catch {
       setError("Something went wrong. Please try again.");

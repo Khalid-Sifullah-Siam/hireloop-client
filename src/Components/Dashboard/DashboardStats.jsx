@@ -1,6 +1,14 @@
 "use client";
 
 import StatsCard from "../StatsCard";
+import { CheckCircle, FileText, Users, Zap } from "lucide-react";
+
+const iconMap = {
+  fileText: FileText,
+  users: Users,
+  zap: Zap,
+  checkCircle: CheckCircle,
+};
 
 export default function DashboardStats({ stats }) {
   return (
@@ -10,7 +18,7 @@ export default function DashboardStats({ stats }) {
           key={item.title}
           title={item.title}
           value={item.value}
-          icon={item.icon}
+          icon={iconMap[item.iconName]}
         />
       ))}
     </div>

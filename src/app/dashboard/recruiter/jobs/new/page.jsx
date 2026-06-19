@@ -28,6 +28,7 @@ const defaultCompany = {
   logo: "",
   industry: "",
   location: "",
+  status: "",
   approved: false,
 };
 
@@ -211,6 +212,10 @@ export default function NewJob() {
   const remainingSlots = Math.max(jobLimit - activeJobCount, 0);
   const usedSlots = Math.min(activeJobCount, jobLimit);
   const canPublish = remainingSlots > 0;
+  const hasCompanies = companies.length > 0;
+  const isCompanyApproved = company.status === "approved";
+  const isCompanyPending = company.status === "pending";
+  const canShowJobForm = hasCompanies && canPublish && isCompanyApproved;
 
   const statusMessage =
     planStatus.isExpired
@@ -224,6 +229,11 @@ export default function NewJob() {
 
     if (!company.id) {
       alert("Please add a company first.");
+      return;
+    }
+
+    if (!isCompanyApproved) {
+      alert("Please wait to get approval.");
       return;
     }
 
@@ -328,38 +338,46 @@ export default function NewJob() {
             {statusMessage}
           </div>
 
-          {canPublish ? (
-            <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
-              <Field label="Company" hint="Required" className="md:col-span-2">
-                <div className="relative">
-                  <select
-                    value={selectedCompanyId}
-                    onChange={(event) => setSelectedCompanyId(event.target.value)}
-                    required
-                    className={selectClass}
-                  >
-                    {companies.length === 0 ? (
-                      <option value="" className={selectOptionClassName} style={selectOptionStyle}>
-                        No company found
+          <div className="mt-8">
+            <Field label="Company" hint="Required">
+              <div className="relative">
+                <select
+                  value={selectedCompanyId}
+                  onChange={(event) => setSelectedCompanyId(event.target.value)}
+                  required
+                  className={selectClass}
+                >
+                  {companies.length === 0 ? (
+                    <option value="" className={selectOptionClassName} style={selectOptionStyle}>
+                      No company found
+                    </option>
+                  ) : (
+                    companies.map((item) => (
+                      <option
+                        key={item.id}
+                        value={item.id}
+                        className={selectOptionClassName}
+                        style={selectOptionStyle}
+                      >
+                        {item.name}
                       </option>
-                    ) : (
-                      companies.map((item) => (
-                        <option
-                          key={item.id}
-                          value={item.id}
-                          className={selectOptionClassName}
-                          style={selectOptionStyle}
-                        >
-                          {item.name}
-                        </option>
-                      ))
-                    )}
-                  </select>
+                    ))
+                  )}
+                </select>
 
-                  <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
-                </div>
-              </Field>
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+              </div>
+            </Field>
 
+            {company.id ? (
+              <p className="mt-3 text-sm text-white/55">
+                Company status: <span className="font-medium capitalize text-white">{company.status || "pending"}</span>
+              </p>
+            ) : null}
+          </div>
+
+          {canShowJobForm ? (
+            <form onSubmit={handleSubmit} className="mt-8 grid gap-4 md:grid-cols-2">
               <Field label="Job Title" hint="Required" className="md:col-span-2">
                 <input
                   type="text"
@@ -585,10 +603,34 @@ export default function NewJob() {
                 </button>
               </div>
             </form>
+          ) : !hasCompanies ? (
+            <div className="mt-8 rounded-3xl border border-amber-400/20 bg-amber-400/10 p-6">
+              <p className="text-lg font-semibold text-white">
+                Add a company first
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                You need to create your company profile before posting a job.
+              </p>
+              <Link
+                href="/dashboard/recruiter/company"
+                className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-white px-5 text-sm font-semibold text-slate-950 transition hover:bg-slate-200"
+              >
+                Go to company page
+              </Link>
+            </div>
+          ) : isCompanyPending ? (
+            <div className="mt-8 rounded-3xl border border-amber-400/20 bg-amber-400/10 p-6">
+              <p className="text-lg font-semibold text-white">
+                Please wait to get approval
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Your company is still pending. After admin approval, the job post form will show here.
+              </p>
+            </div>
           ) : (
             <div className="mt-8 rounded-3xl border border-amber-400/20 bg-amber-400/10 p-6">
               <p className="text-lg font-semibold text-white">
-                Limit sas
+                Limit reached
               </p>
               <p className="mt-2 text-sm leading-6 text-white/70">
                 Your {getPlanName(recruiterPlan)} plan already used all{" "}

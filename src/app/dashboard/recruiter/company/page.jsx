@@ -391,7 +391,10 @@ export default function RecruiterCompany() {
       employeeCount,
       description,
       logo: draftCompany.logo,
-      status: "pending",
+      status:
+        formMode === "edit"
+          ? companies.find((company) => company.id === editingCompanyId)?.status || "pending"
+          : "pending",
     };
 
     setIsSavingCompany(true);
@@ -412,13 +415,15 @@ export default function RecruiterCompany() {
       saveCompaniesToStorage(userId, nextCompanies);
       setIsFormOpen(false);
       toast.success(
-        formMode === "edit" ? "Company updated successfully." : "Company created successfully."
+        formMode === "edit"
+          ? "Company updated successfully."
+          : "Company created successfully. Status is pending."
       );
       setNotice({
         text:
           formMode === "edit"
             ? "Company updated successfully."
-            : "Company registered successfully.",
+            : "Company registered successfully. Status is pending.",
         type: "success",
       });
     } catch (error) {

@@ -1,7 +1,13 @@
 import PricingSection from "@/Components/PricingSection";
 import Link from "next/link";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
 
-const PlansPage = () => {
+const PlansPage = async () => {
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
     return (
         <main className="min-h-screen bg-[#0f0f0f]">
             <section className="mx-auto max-w-5xl px-6 pt-12 text-center">
@@ -22,7 +28,7 @@ const PlansPage = () => {
                 </Link>
             </section>
 
-            <PricingSection />
+            <PricingSection currentUser={session?.user || null} />
         </main>
     );
 };
