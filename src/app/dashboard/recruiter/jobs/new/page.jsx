@@ -12,7 +12,7 @@ import {
   getPlanName,
   getRecruiterJobLimit,
 } from "@/lib/plan-utils";
-import { toast } from "@heroui/react";
+import { toast } from "react-toastify";
 import {
   Briefcase,
   CalendarDays,
@@ -60,6 +60,18 @@ const selectClass =
 
 const textareaClass =
   "mt-2 min-h-[148px] w-full resize-y rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/30 focus:border-[#6fb7ff]/70 focus:bg-white/[0.06]";
+
+function getCompanyStatusStyles(status) {
+  if (status === "approved") {
+    return "border-emerald-500/20 bg-emerald-500/10 text-emerald-300";
+  }
+
+  if (status === "rejected") {
+    return "border-rose-500/20 bg-rose-500/10 text-rose-300";
+  }
+
+  return "border-amber-500/20 bg-amber-500/10 text-amber-300";
+}
 
 function SectionHeader({ icon: Icon, eyebrow, title, description }) {
   return (
@@ -215,6 +227,7 @@ export default function NewJob() {
   const hasCompanies = companies.length > 0;
   const isCompanyApproved = company.status === "approved";
   const isCompanyPending = company.status === "pending";
+  const isCompanyRejected = company.status === "rejected";
   const canShowJobForm = hasCompanies && canPublish && isCompanyApproved;
 
   const statusMessage =
@@ -370,8 +383,15 @@ export default function NewJob() {
             </Field>
 
             {company.id ? (
-              <p className="mt-3 text-sm text-white/55">
-                Company status: <span className="font-medium capitalize text-white">{company.status || "pending"}</span>
+              <p className="mt-3 flex items-center gap-2 text-sm text-white/55">
+                <span>Company status:</span>
+                <span
+                  className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold capitalize ${getCompanyStatusStyles(
+                    company.status || "pending"
+                  )}`}
+                >
+                  {company.status || "pending"}
+                </span>
               </p>
             ) : null}
           </div>
@@ -627,6 +647,15 @@ export default function NewJob() {
                 Your company is still pending. After admin approval, the job post form will show here.
               </p>
             </div>
+          ) : isCompanyRejected ? (
+            <div className="mt-8 rounded-3xl border border-rose-400/20 bg-rose-400/10 p-6">
+              <p className="text-lg font-semibold text-white">
+                This company was rejected
+              </p>
+              <p className="mt-2 text-sm leading-6 text-white/70">
+                Your company is currently rejected, so job posting is unavailable. Please update the company information or contact the admin.
+              </p>
+            </div>
           ) : (
             <div className="mt-8 rounded-3xl border border-amber-400/20 bg-amber-400/10 p-6">
               <p className="text-lg font-semibold text-white">
@@ -637,7 +666,7 @@ export default function NewJob() {
                 {formatPlanLimit(jobLimit)} job create quota.
               </p>
               <p className="mt-2 text-sm leading-6 text-white/70">
-                Plan upgrade koro to create more jobs.
+                Upgrade your plan to create more jobs.
               </p>
               <Link
                 href="/plans"

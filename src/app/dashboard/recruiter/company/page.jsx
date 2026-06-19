@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { toast } from "@heroui/react";
+import { toast } from "react-toastify";
 import { createCompany, getCompanies, updateCompany } from "@/lib/actions/companies";
 import { authClient } from "@/lib/auth-client";
 import {
