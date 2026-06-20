@@ -6,6 +6,7 @@ import { auth } from "@/lib/auth";
 import { getSeekerApplications } from "@/lib/api/applications";
 import { getSeekerApplicationLimit } from "@/lib/plan-utils";
 import { getFreshUserPlan } from "@/lib/user-plan-server";
+import { getBackendJsonHeaders } from "@/lib/server-auth-token";
 
 const getApplicationsApiUrl = () => {
     const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
@@ -76,9 +77,7 @@ export async function applyForJob(formData) {
 
     const response = await fetch(getApplicationsApiUrl(), {
         method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-        },
+        headers: getBackendJsonHeaders(seeker),
         body: JSON.stringify(applicationData),
     });
 

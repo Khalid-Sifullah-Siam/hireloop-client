@@ -1,3 +1,25 @@
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getBackendAuthHeaders } from "@/lib/server-auth-token";
+
+async function getCurrentUser() {
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
+    return session?.user || null;
+}
+
+async function getSecureFetchHeaders() {
+    const user = await getCurrentUser();
+
+    if (!user) {
+        return {};
+    }
+
+    return getBackendAuthHeaders(user);
+}
+
 const formatDate = (dateValue) => {
     if (!dateValue) {
         return "N/A";
@@ -46,6 +68,7 @@ export const getSeekerApplications = async (seekerId, seekerEmail = "") => {
 
     const response = await fetch(apiUrl, {
         cache: "no-store",
+        headers: await getSecureFetchHeaders(),
     });
 
     if (!response.ok) {

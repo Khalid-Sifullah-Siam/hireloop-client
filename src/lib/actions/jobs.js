@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { getRecruiterJobs } from "@/lib/api/jobs";
 import { getRecruiterJobLimit } from "@/lib/plan-utils";
 import { getFreshUserPlanStatus } from "@/lib/user-plan-server";
+import { getBackendJsonHeaders } from "@/lib/server-auth-token";
 
 const toBoolean = (value) => value === true || value === "true" || value === "on";
 
@@ -86,9 +87,7 @@ export async function createJob(jobFormData) {
 
     const res = await fetch(getJobsApiUrl(), {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: getBackendJsonHeaders(recruiter),
         body: JSON.stringify({
             ...payload,
             recruiterId: recruiter.id,
@@ -102,6 +101,16 @@ export async function createJob(jobFormData) {
         success: res.ok,
         message: data?.message || (res.ok ? "Job posted successfully." : "Failed to post job."),
     };
+}
+
+export async function getCurrentRecruiterJobs() {
+    const recruiter = await getCurrentRecruiter();
+
+    if (!recruiter) {
+        return [];
+    }
+
+    return getRecruiterJobs(recruiter.id);
 }
 
 export async function getCurrentRecruiterPlanStatus() {

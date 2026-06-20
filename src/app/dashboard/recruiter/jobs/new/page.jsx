@@ -3,9 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createJob, getCurrentRecruiterPlanStatus } from "@/lib/actions/jobs";
+import {
+  createJob,
+  getCurrentRecruiterJobs,
+  getCurrentRecruiterPlanStatus,
+} from "@/lib/actions/jobs";
 import { getCompanies } from "@/lib/actions/companies";
-import { getRecruiterJobs } from "@/lib/api/jobs";
 import { authClient } from "@/lib/auth-client";
 import {
   formatPlanLimit,
@@ -178,7 +181,7 @@ export default function NewJob() {
       }
 
       try {
-        const jobs = await getRecruiterJobs(session.user.id);
+        const jobs = await getCurrentRecruiterJobs();
 
         if (isMounted) {
           setActiveJobCount(jobs.length);

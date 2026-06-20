@@ -1,3 +1,25 @@
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { getBackendAuthHeaders } from "@/lib/server-auth-token";
+
+async function getCurrentUser() {
+    const session = await auth.api.getSession({
+        headers: await headers(),
+    });
+
+    return session?.user || null;
+}
+
+async function getSecureFetchHeaders() {
+    const user = await getCurrentUser();
+
+    if (!user) {
+        return {};
+    }
+
+    return getBackendAuthHeaders(user);
+}
+
 const formatDate = (dateValue) => {
     if (!dateValue) {
         return "N/A";
@@ -87,6 +109,7 @@ export const getCompanyJobs = async (companyId, status = "active") => {
 
     const response = await fetch(`${serverUrl}/jobs/${companyId}/${status}`, {
         cache: "no-store",
+        headers: await getSecureFetchHeaders(),
     });
 
     if (!response.ok) {
@@ -107,6 +130,7 @@ export const getRecruiterJobs = async (recruiterId, status = "active") => {
 
     const response = await fetch(`${serverUrl}/jobs/recruiter/${recruiterId}/${status}`, {
         cache: "no-store",
+        headers: await getSecureFetchHeaders(),
     });
 
     if (!response.ok) {

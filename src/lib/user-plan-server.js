@@ -1,3 +1,5 @@
+import { getBackendJsonHeaders } from "@/lib/server-auth-token";
+
 const getUsersApiUrl = () => {
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
@@ -40,9 +42,7 @@ export async function getFreshUserPlanStatus(user, fallbackPlan = "seeker_free")
 
   const response = await fetch(`${getUsersApiUrl()}/plan-status`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getBackendJsonHeaders(user),
     cache: "no-store",
     body: JSON.stringify({
       user,

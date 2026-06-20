@@ -110,10 +110,11 @@ export default async function AdminCompaniesPage({ searchParams }) {
         </div>
 
         <div className="mt-8 overflow-hidden rounded-[28px] border border-white/10 bg-[#1a1a1b]">
-          <div className="hidden grid-cols-[2fr_2fr_1.5fr_1.2fr_1.4fr_1.3fr] gap-4 border-b border-white/10 bg-white/[0.04] px-5 py-4 text-sm text-white/55 lg:grid">
+          <div className="hidden grid-cols-[2fr_2fr_1.3fr_1.1fr_1fr_1.3fr_1.3fr] gap-4 border-b border-white/10 bg-white/[0.04] px-5 py-4 text-sm text-white/55 lg:grid">
             <p>Company Name</p>
             <p>Recruiter Email</p>
             <p>Industry</p>
+            <p>Jobs Count</p>
             <p>Status</p>
             <p>Date Submitted</p>
             <p className="text-right">Actions</p>
@@ -136,7 +137,7 @@ export default async function AdminCompaniesPage({ searchParams }) {
                   key={company._id || company.id}
                   className="border-b border-white/5 px-5 py-5 last:border-b-0"
                 >
-                  <div className="grid gap-4 lg:grid-cols-[2fr_2fr_1.5fr_1.2fr_1.4fr_1.3fr] lg:items-center">
+                  <div className="grid gap-4 lg:grid-cols-[2fr_2fr_1.3fr_1.1fr_1fr_1.3fr_1.3fr] lg:items-center">
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-xs font-semibold text-white/80">
                         {getInitials(company.name)}
@@ -154,6 +155,8 @@ export default async function AdminCompaniesPage({ searchParams }) {
                         {company.industry || "N/A"}
                       </span>
                     </div>
+
+                    <p className="text-sm font-medium text-white/75">{company.jobsCount || 0}</p>
 
                     <div className={`inline-flex items-center gap-2 text-sm ${statusStyles.text}`}>
                       <span className={`h-2.5 w-2.5 rounded-full ${statusStyles.dot}`} />

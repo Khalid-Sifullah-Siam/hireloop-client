@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
+import { getBackendAuthHeaders, getBackendJsonHeaders } from "@/lib/server-auth-token";
 
 function getAdminCompaniesApiUrl() {
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
@@ -45,6 +46,7 @@ export async function getAdminCompanies(status = "all") {
   const query = status && status !== "all" ? `?status=${encodeURIComponent(status)}` : "";
   const response = await fetch(`${getAdminCompaniesApiUrl()}${query}`, {
     cache: "no-store",
+    headers: getBackendAuthHeaders(admin),
   });
 
   if (!response.ok) {
@@ -70,9 +72,7 @@ export async function updateAdminCompanyStatus(formData) {
 
   const response = await fetch(`${getAdminCompaniesApiUrl()}/${companyId}/status`, {
     method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getBackendJsonHeaders(admin),
     body: JSON.stringify({ status }),
   });
 

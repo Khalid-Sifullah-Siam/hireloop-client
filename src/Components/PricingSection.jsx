@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button, Card } from "@heroui/react";
+import { startCheckout } from "@/lib/actions/checkout";
 
 const jobSeekerPlans = [
   {
@@ -78,7 +79,6 @@ const recruiterPlans = [
 
 export default function PricingSection({ currentUser = null }) {
   const [activePlanType, setActivePlanType] = useState("jobSeeker");
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || "";
 
   const plans =
     activePlanType === "jobSeeker" ? jobSeekerPlans : recruiterPlans;
@@ -164,16 +164,13 @@ export default function PricingSection({ currentUser = null }) {
                     {plan.price === "$0" ? "Start Free" : "Sign in to checkout"}
                   </Link>
                 ) : (
-                  <form action={`${serverUrl}/checkout_sessions`} method="POST">
+                  <form action={startCheckout}>
                     <section>
                       <input
                         type="hidden"
                         name="planId"
                         value={plan.id}
                       />
-                      <input type="hidden" name="userId" value={currentUser.id} />
-                      <input type="hidden" name="userEmail" value={currentUser.email} />
-                      <input type="hidden" name="userRole" value={currentUser.role || ""} />
                       <Button
                         className={`w-full ${
                           plan.highlight

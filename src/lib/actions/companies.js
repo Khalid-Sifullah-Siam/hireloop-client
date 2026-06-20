@@ -2,6 +2,7 @@
 
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getBackendAuthHeaders, getBackendJsonHeaders } from "@/lib/server-auth-token";
 
 function getCompaniesApiUrl() {
   const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
@@ -43,9 +44,7 @@ export async function createCompany(companyData) {
 
   const response = await fetch(`${getCompaniesApiUrl()}/recruiter/${recruiter.id}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getBackendJsonHeaders(recruiter),
     body: JSON.stringify(companyData),
   });
 
@@ -69,9 +68,7 @@ export async function updateCompany(companyData) {
     `${getCompaniesApiUrl()}/recruiter/${recruiter.id}/${companyData.id}`,
     {
       method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: getBackendJsonHeaders(recruiter),
       body: JSON.stringify(companyData),
     }
   );
@@ -94,6 +91,7 @@ export async function getCompanies() {
 
   const response = await fetch(`${getCompaniesApiUrl()}/recruiter/${recruiter.id}`, {
     cache: "no-store",
+    headers: getBackendAuthHeaders(recruiter),
   });
 
   if (!response.ok) {

@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation'
+import { headers } from 'next/headers'
 
+import { auth } from '@/lib/auth'
+import { getBackendAuthHeaders, getBackendJsonHeaders } from '@/lib/server-auth-token'
 import { getPlanName } from '@/lib/plan-utils'
-import { getPlanExpireDate } from '@/lib/user-plan-server'
 
 export default async function Success({ searchParams }) {
   const { session_id } = await searchParams
@@ -16,41 +18,56 @@ export default async function Success({ searchParams }) {
     throw new Error('NEXT_PUBLIC_SERVER_URL is missing from your environment variables.')
   }
 
+  const currentSession = await auth.api.getSession({
+    headers: await headers(),
+  })
+  const user = currentSession?.user
+
+  if (!user) {
+    redirect('/auth/signin?redirect=/plans/success')
+  }
+
   const sessionResponse = await fetch(`${serverUrl}/checkout_sessions/${session_id}`, {
     cache: 'no-store',
+    headers: getBackendAuthHeaders(user),
   })
 
   if (!sessionResponse.ok) {
     redirect('/plans')
   }
 
-  const session = await sessionResponse.json()
+  const checkoutSession = await sessionResponse.json()
 
-  if (session.status === 'open') {
+  if (checkoutSession.status === 'open') {
     redirect('/')
   }
 
-  if (session.status !== 'complete') {
+  if (checkoutSession.status !== 'complete') {
     redirect('/plans')
   }
 
-  const planId = session.metadata?.planId || ''
+  if (checkoutSession.metadata?.userId !== user.id) {
+    redirect('/plans')
+  }
+
+  const planId = checkoutSession.metadata?.planId || ''
   const planName = getPlanName(planId)
   const customerEmail =
-    session.customer_details?.email || session.customer_email || 'your email'
+    checkoutSession.customer_details?.email || checkoutSession.customer_email || 'your email'
 
-  if (session.metadata?.userId && planId) {
-    const userId = session.metadata.userId
-    const userRole = session.metadata?.role || ''
-    const planStartedAt = new Date()
-    const planExpiresAt = getPlanExpireDate()
+  if (checkoutSession.metadata?.userId && planId) {
+    const userId = checkoutSession.metadata.userId
+    const userRole = checkoutSession.metadata?.role || ''
+    const planStartedAt = checkoutSession.created
+      ? new Date(checkoutSession.created * 1000)
+      : new Date()
+    const planExpiresAt = new Date(planStartedAt)
+    planExpiresAt.setDate(planExpiresAt.getDate() + 30)
 
     if (serverUrl) {
       await fetch(`${serverUrl}/users/plan`, {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getBackendJsonHeaders(user),
         cache: 'no-store',
         body: JSON.stringify({
           userId,
@@ -63,23 +80,21 @@ export default async function Success({ searchParams }) {
 
       await fetch(`${serverUrl}/plans`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getBackendJsonHeaders(user),
         cache: 'no-store',
         body: JSON.stringify({
           userId,
-          userName: session.customer_details?.name || '',
+          userName: checkoutSession.customer_details?.name || '',
           userEmail: customerEmail === 'your email' ? '' : customerEmail,
           role: userRole,
           planId,
           planName,
-          stripeSessionId: session.id,
-          stripeCustomerId: String(session.customer || ''),
-          stripeSubscriptionId: String(session.subscription || ''),
-          amountTotal: session.amount_total || 0,
-          currency: session.currency || '',
-          paymentStatus: session.payment_status || '',
+          stripeSessionId: checkoutSession.id,
+          stripeCustomerId: String(checkoutSession.customer || ''),
+          stripeSubscriptionId: String(checkoutSession.subscription || ''),
+          amountTotal: checkoutSession.amount_total || 0,
+          currency: checkoutSession.currency || '',
+          paymentStatus: checkoutSession.payment_status || '',
           planStartedAt,
           planExpiresAt,
         }),
