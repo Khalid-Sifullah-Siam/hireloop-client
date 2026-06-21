@@ -23,6 +23,18 @@ export async function getFreshUserPlan(user, fallbackPlan = "seeker_free") {
   return planStatus.plan;
 }
 
+export async function getFreshUserAccountStatus(user, fallbackPlan = "seeker_free") {
+  const planStatus = await getFreshUserPlanStatus(user, fallbackPlan);
+  const status = String(planStatus.status || "pending").toLowerCase();
+  const suspended = Boolean(planStatus.suspended);
+
+  return {
+    status,
+    suspended,
+    isActive: status === "active" && !suspended,
+  };
+}
+
 export async function getFreshUserPlanStatus(user, fallbackPlan = "seeker_free") {
   if (!user) {
     return {

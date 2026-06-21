@@ -12,9 +12,9 @@ import { Button, Drawer } from "@heroui/react";
 
 const adminNavItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard/admin" },
-  { icon: Users, label: "Users", href: "#" },
+  { icon: Users, label: "Users", href: "/dashboard/admin/users" },
   { icon: Building2, label: "Companies", href: "/dashboard/admin/companies" },
-  { icon: Briefcase, label: "Jobs", href: "#" },
+  { icon: Briefcase, label: "Jobs", href: "/dashboard/admin/jobs" },
   { icon: CreditCard, label: "Payments", href: "#" },
   { icon: Settings, label: "Settings", href: "#" },
 ];

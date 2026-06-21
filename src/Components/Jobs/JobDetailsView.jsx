@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-const JobDetailsView = ({ job, applicationCount = 0 }) => {
+const JobDetailsView = ({ job, applicationCount = 0, canApply = false }) => {
     if (!job) {
         return (
             <main className="min-h-screen bg-slate-50 px-4 py-12">
@@ -19,6 +19,24 @@ const JobDetailsView = ({ job, applicationCount = 0 }) => {
             </main>
         );
     }
+
+    const status = String(job.status || "pending").toLowerCase();
+    const statusText =
+        status === "approved"
+            ? "Approved"
+            : status === "rejected"
+                ? "Rejected"
+                : status === "expired"
+                    ? "Expired"
+                    : "Pending";
+    const statusClass =
+        status === "approved"
+            ? "bg-emerald-50 text-emerald-700"
+            : status === "rejected"
+                ? "bg-rose-50 text-rose-700"
+                : status === "expired"
+                    ? "bg-slate-100 text-slate-600"
+                    : "bg-amber-50 text-amber-700";
 
     return (
         <main className="min-h-screen bg-[radial-gradient(circle_at_top,_#f8fbff,_#eef5ff_45%,_#f8fafc_100%)] px-4 py-10 sm:px-6 lg:px-8">
@@ -39,8 +57,8 @@ const JobDetailsView = ({ job, applicationCount = 0 }) => {
                                 <span className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700">
                                     {job.category}
                                 </span>
-                                <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                    {job.status}
+                                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+                                    {statusText}
                                 </span>
                                 {job.isRemote ? (
                                     <span className="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
@@ -120,22 +138,28 @@ const JobDetailsView = ({ job, applicationCount = 0 }) => {
                                 </div>
 
                                 <div className="mt-5 space-y-3 text-sm text-slate-600">
-                                    <p><span className="font-medium text-slate-900">Recruiter ID:</span> {job.recruiterId}</p>
                                     <p><span className="font-medium text-slate-900">Visibility:</span> {job.visibility}</p>
                                     <p><span className="font-medium text-slate-900">Posted:</span> {job.createdAtText}</p>
                                     <p><span className="font-medium text-slate-900">Updated:</span> {job.updatedAtText}</p>
                                 </div>
 
                              
-                                <div className="mt-6">
-                                    <Link
-                                        href={`/job/${job._id}/apply`}
-                                        className="inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
-                                    >
-                                        Apply now
-                                    </Link>
-                                   
-                                </div>
+                                {canApply && status === "approved" ? (
+                                    <div className="mt-6">
+                                        <Link
+                                            href={`/job/${job._id}/apply`}
+                                            className="inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
+                                        >
+                                            Apply now
+                                        </Link>
+                                    </div>
+                                ) : (
+                                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-100 px-4 py-3 text-sm text-slate-600">
+                                        {status === "expired"
+                                            ? "This job posting has expired."
+                                            : "Apply option is available for job seekers only."}
+                                    </div>
+                                )}
                             </div>
                         </aside>
                     </div>

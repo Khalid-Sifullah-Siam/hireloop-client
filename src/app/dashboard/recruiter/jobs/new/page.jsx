@@ -268,7 +268,7 @@ export default function NewJob() {
     formData.append("companyLogo", company.logo || "");
     formData.append("companyPlan", getPlanName(recruiterPlan));
     formData.append("companyApproved", company.approved);
-    formData.append("status", "active");
+    formData.append("status", "pending");
     formData.append("visibility", "public");
 
     const data = Object.fromEntries(formData.entries());
@@ -609,8 +609,8 @@ export default function NewJob() {
               <div className="md:col-span-2 flex flex-col gap-3 border-t border-white/10 pt-6 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm leading-6 text-white/50">
                   When you submit, the job is saved as{" "}
-                  <span className="text-white">active</span> and made publicly
-                  visible.
+                  <span className="text-white">pending</span> and will be shown
+                  to job seekers after admin approval.
                 </p>
 
                 <button

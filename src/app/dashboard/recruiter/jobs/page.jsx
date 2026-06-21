@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getRecruiterJobs } from "@/lib/api/jobs";
-import { Pencil, Trash2 } from "lucide-react";
+import JobActions from "./job-actions";
 
 const RecruiterJobs = async () => {
   const requestHeaders = await headers();
@@ -12,6 +12,15 @@ const RecruiterJobs = async () => {
   const recruiterId = session?.user?.role === "recruiter" ? session.user.id : "";
   const recruiterName = session?.user?.name || "Recruiter";
   const jobs = recruiterId ? await getRecruiterJobs(recruiterId) : [];
+
+  const getStatusLabel = (status) => {
+    const value = String(status || "pending").toLowerCase();
+
+    if (value === "approved") return "Approved";
+    if (value === "rejected") return "Rejected";
+    if (value === "expired") return "Expired";
+    return "Pending";
+  };
 
   return (
     <div className="p-6">
@@ -54,32 +63,14 @@ const RecruiterJobs = async () => {
                   <td className="p-3 border">{job.title}</td>
                   <td className="p-3 border">{job.category}</td>
                   <td className="p-3 border">{job.jobType}</td>
-                  <td className="p-3 border">{job.status}</td>
+                  <td className="p-3 border">{getStatusLabel(job.status)}</td>
                   <td className="p-3 border">{job.location}</td>
                   <td className="p-3 border">{job.salaryText}</td>
                   <td className="p-3 border">{job.deadlineText}</td>
                   <td className="p-3 border">{job.createdAtText}</td>
-                  <td className="p-3 border">
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        aria-label="Edit job"
-                        title="Edit job"
-                        className="rounded-md border border-blue-200 p-2 text-blue-600 hover:bg-blue-50"
-                      >
-                        <Pencil size={16} />
-                      </button>
-
-                      <button
-                        type="button"
-                        aria-label="Delete job"
-                        title="Delete job"
-                        className="rounded-md border border-red-200 p-2 text-red-600 hover:bg-red-50"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </td>
+                      <td className="p-3 border">
+                        <JobActions job={job} />
+                      </td>
                 </tr>
               ))}
             </tbody>

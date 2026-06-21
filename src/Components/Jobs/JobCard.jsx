@@ -2,6 +2,23 @@ import Link from "next/link";
 
 const JobCard = ({ job }) => {
     const hasRemoteTag = job.location?.toLowerCase() === "remote";
+    const status = String(job.status || "pending").toLowerCase();
+    const statusText =
+        status === "approved"
+            ? "Approved"
+            : status === "rejected"
+                ? "Rejected"
+                : status === "expired"
+                    ? "Expired"
+                    : "Pending";
+    const statusClass =
+        status === "approved"
+            ? "bg-emerald-500/15 text-emerald-300"
+            : status === "rejected"
+                ? "bg-rose-500/15 text-rose-300"
+                : status === "expired"
+                    ? "bg-slate-500/15 text-slate-300"
+                    : "bg-amber-500/15 text-amber-300";
 
     return (
         <article className="group relative overflow-hidden rounded-2xl border border-white/10 bg-[#1a1a1f] p-6 shadow-[0_10px_35px_rgba(0,0,0,0.3)] transition duration-300 hover:-translate-y-1 hover:border-white/20 hover:shadow-[0_18px_50px_rgba(0,0,0,0.45)]">
@@ -21,8 +38,8 @@ const JobCard = ({ job }) => {
                         </p>
                     </div>
 
-                    <span className="shrink-0 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-semibold text-emerald-300">
-                        {job.status}
+                    <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${statusClass}`}>
+                        {statusText}
                     </span>
                 </div>
 

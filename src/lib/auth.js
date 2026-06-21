@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { client, db } from "@/lib/db";
+import { admin } from "better-auth/plugins";
 
 const defaultUserRole = "seeker";
 
@@ -37,6 +38,21 @@ export const auth = betterAuth({
         input: false,
         required: false,
       },
+      status: {
+        type: "string",
+        input: false,
+        required: false,
+        defaultValue: "pending",
+      },
+      suspended: {
+        type: "boolean",
+        input: false,
+        required: false,
+        defaultValue: false,
+      },
     },
   },
+  plugins: [
+    admin()
+  ]
 });

@@ -35,13 +35,23 @@ const formatDate = (dateValue) => {
 };
 
 const makeApplication = (application) => {
+    const jobInfo = application.jobInfo || {};
+    const jobId = jobInfo.id || application.jobId || application.job_id || "";
+
     return {
         _id: application._id?.toString(),
         status: application.status || "submitted",
         appliedAt: application.appliedAt || application.createdAt || null,
         appliedAtText: formatDate(application.appliedAt || application.createdAt),
         userInfo: application.userInfo || {},
-        jobInfo: application.jobInfo || {},
+        jobInfo: {
+            ...jobInfo,
+            id: jobId,
+            title: jobInfo.title || application.jobTitle || "Untitled job",
+            companyName: jobInfo.companyName || application.companyName || "N/A",
+            jobType: jobInfo.jobType || application.jobType || "Full-time",
+            location: jobInfo.location || application.location || "",
+        },
         applicationInfo: application.applicationInfo || {},
     };
 };

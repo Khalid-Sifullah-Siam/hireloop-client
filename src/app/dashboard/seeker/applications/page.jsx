@@ -266,12 +266,16 @@ const ApplicationsPage = async ({ searchParams }) => {
                                     </div>
 
                                     <div className="md:text-right">
-                                        <Link
-                                            href={`/jobs/${application.jobInfo.id}`}
-                                            className="text-sm font-medium text-white hover:text-slate-300"
-                                        >
-                                            Details
-                                        </Link>
+                                        {application.jobInfo.id ? (
+                                            <Link
+                                                href={`/jobs/${application.jobInfo.id}`}
+                                                className="text-sm font-medium text-white hover:text-slate-300"
+                                            >
+                                                Details
+                                            </Link>
+                                        ) : (
+                                            <span className="text-sm text-slate-500">No details</span>
+                                        )}
                                     </div>
                                 </div>
                             </article>

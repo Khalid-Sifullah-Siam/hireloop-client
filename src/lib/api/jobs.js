@@ -38,6 +38,29 @@ const formatDate = (dateValue) => {
     return date.toISOString().slice(0, 10);
 };
 
+const getJobStatus = (job) => {
+    const status = String(job.status || "").trim().toLowerCase();
+    const deadlineValue = job.deadline || job.applicationDeadline;
+
+    if (deadlineValue) {
+        const deadlineDate = new Date(deadlineValue);
+
+        if (!Number.isNaN(deadlineDate.getTime()) && deadlineDate.getTime() < Date.now()) {
+            return "expired";
+        }
+    }
+
+    if (status === "active") {
+        return "pending";
+    }
+
+    if (status === "approved" || status === "pending" || status === "rejected" || status === "expired") {
+        return status;
+    }
+
+    return "pending";
+};
+
 const getSalaryText = (job) => {
     const currency = job.currency || job.salary?.currency || "";
     const minSalary = job.minSalary ?? job.salary?.min;
@@ -55,22 +78,36 @@ const getSalaryText = (job) => {
 };
 
 const makeJobForTable = (job) => {
+    const status = getJobStatus(job);
+
     return {
         _id: job._id.toString(),
         title: job.jobTitle?.trim() || job.title || "Untitled job",
+        companyId: job.companyId || job.company?.id || "",
         companyName: job.companyName || job.company?.name || "N/A",
         companyWebsite: job.companyWebsite || job.company?.websiteUrl || "",
+        companyPlan: job.companyPlan || job.company?.plan || "N/A",
         category: job.category || "N/A",
         jobType: job.jobType || "N/A",
-        status: job.status || "N/A",
+        status,
         location: job.location || (job.isRemote ? "Remote" : "N/A"),
+        isRemote: Boolean(job.isRemote),
+        currency: job.currency || job.salary?.currency || "",
+        minSalary: job.minSalary ?? job.salary?.min ?? "",
+        maxSalary: job.maxSalary ?? job.salary?.max ?? "",
         salaryText: getSalaryText(job),
         deadlineText: formatDate(job.deadline || job.applicationDeadline),
+        deadline: job.deadline || job.applicationDeadline || "",
         createdAtText: formatDate(job.createdAt),
+        responsibilities: job.responsibilities || "",
+        requirements: job.requirements || "",
+        benefits: job.benefits || "",
     };
 };
 
 const makeJobDetail = (job) => {
+    const status = getJobStatus(job);
+
     return {
         _id: job._id.toString(),
         title: job.jobTitle?.trim() || job.title || "Untitled job",
@@ -78,10 +115,9 @@ const makeJobDetail = (job) => {
         companyLogo: job.companyLogo || job.company?.logo || "",
         companyWebsite: job.companyWebsite || job.company?.websiteUrl || "",
         companyPlan: job.companyPlan || job.company?.plan || "N/A",
-        recruiterId: job.recruiterId || "N/A",
         category: job.category || "N/A",
         jobType: job.jobType || "N/A",
-        status: job.status || "N/A",
+        status,
         visibility: job.visibility || "N/A",
         location: job.location || (job.isRemote ? "Remote" : "N/A"),
         isRemote: Boolean(job.isRemote),
@@ -121,7 +157,7 @@ export const getCompanyJobs = async (companyId, status = "active") => {
     return jobs.map(makeJobForTable);
 };
 
-export const getRecruiterJobs = async (recruiterId, status = "active") => {
+export const getRecruiterJobs = async (recruiterId, status = "all") => {
     const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
 
     if (!serverUrl) {

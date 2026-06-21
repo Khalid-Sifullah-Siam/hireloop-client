@@ -7,7 +7,7 @@ import {
     getPlanName,
     getSeekerApplicationLimit,
 } from "@/lib/plan-utils";
-import { getFreshUserPlan } from "@/lib/user-plan-server";
+import { getFreshUserAccountStatus, getFreshUserPlan } from "@/lib/user-plan-server";
 import { headers } from "next/headers";
 import Link from "next/link";
 
@@ -21,6 +21,10 @@ const JobDetailsPage = async ({ params }) => {
 
     const user = session?.user;
     let applicationCount = 0;
+    const accountStatus = user?.role === "seeker"
+        ? await getFreshUserAccountStatus(user, "seeker_free")
+        : { isActive: false };
+    const canApply = user?.role === "seeker" && accountStatus.isActive && job?.status === "approved";
     const seekerPlan = user?.role === "seeker"
         ? await getFreshUserPlan(user, "seeker_free")
         : "seeker_free";
@@ -60,6 +64,7 @@ const JobDetailsPage = async ({ params }) => {
                     job={job}
                     applicationCount={applicationCount}
                     maxApplicationsPerMonth={maxApplicationsPerMonth}
+                    canApply={canApply}
                 />
             )}
         </main>
