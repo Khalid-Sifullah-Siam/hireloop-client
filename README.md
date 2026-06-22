@@ -58,6 +58,9 @@ npm run dev
 
 Open `http://localhost:3000`.
 
+Production client: `https://hireloop-client-six.vercel.app`
+Production server: `https://hireloop-server-tan-iota.vercel.app`
+
 ## Useful Commands
 
 ```bash
