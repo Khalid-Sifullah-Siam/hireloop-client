@@ -15,9 +15,10 @@ const recruiterNavItems = [
   { icon: House, label: "Home", href: "/dashboard/recruiter" },
   { icon: Magnifier, label: "Jobs", href: "/dashboard/recruiter/jobs" },
   { icon: Bell, label: "Create a job", href: "/dashboard/recruiter/jobs/new" },
-  { icon: Envelope, label: "Messages", href: "#" },
+  // { icon: Envelope, label: "Messages", href: "#" },
   { icon: Person, label: "Company Profile", href: "/dashboard/recruiter/company" },
-  { icon: Gear, label: "Settings", href: "#" },
+  { icon: Bell, label: "Billing", href: "/dashboard/recruiter/billing" },
+  { icon: Gear, label: "Settings", href: "/dashboard/recruiter/settings" },
 ];
 
 const seekerNavItems = [

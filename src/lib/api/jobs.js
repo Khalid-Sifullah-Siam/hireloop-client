@@ -107,10 +107,12 @@ const makeJobForTable = (job) => {
 
 const makeJobDetail = (job) => {
     const status = getJobStatus(job);
+    const companyId = job.companyId || job.company?.id || "";
 
     return {
         _id: job._id.toString(),
         title: job.jobTitle?.trim() || job.title || "Untitled job",
+        companyId,
         companyName: job.companyName || job.company?.name || "N/A",
         companyLogo: job.companyLogo || job.company?.logo || "",
         companyWebsite: job.companyWebsite || job.company?.websiteUrl || "",

@@ -1,5 +1,6 @@
 import JobDetailsView from "@/Components/Jobs/JobDetailsView";
 import { getSeekerApplications } from "@/lib/api/applications";
+import { getSeekerSavedJobs } from "@/lib/api/saved-jobs";
 import { getJobById } from "@/lib/api/jobs";
 import { auth } from "@/lib/auth";
 import {
@@ -11,8 +12,9 @@ import { getFreshUserAccountStatus, getFreshUserPlan } from "@/lib/user-plan-ser
 import { headers } from "next/headers";
 import Link from "next/link";
 
-const JobDetailsPage = async ({ params }) => {
+const JobDetailsPage = async ({ params, searchParams }) => {
     const { id: jobId } = await params;
+    const messages = await searchParams;
     const job = await getJobById(jobId);
 
     const session = await auth.api.getSession({
@@ -21,6 +23,8 @@ const JobDetailsPage = async ({ params }) => {
 
     const user = session?.user;
     let applicationCount = 0;
+    let isSaved = false;
+    let hasApplied = false;
     const accountStatus = user?.role === "seeker"
         ? await getFreshUserAccountStatus(user, "seeker_free")
         : { isActive: false };
@@ -32,7 +36,10 @@ const JobDetailsPage = async ({ params }) => {
 
     if (user?.role === "seeker") {
         const applications = await getSeekerApplications(user.id, user.email);
+        const savedJobs = await getSeekerSavedJobs(user.id, user.email);
         applicationCount = applications.length;
+        hasApplied = applications.some((application) => application.jobInfo.id === jobId);
+        isSaved = savedJobs.some((savedJob) => savedJob.jobId === jobId);
     }
 
     return (
@@ -65,6 +72,10 @@ const JobDetailsPage = async ({ params }) => {
                     applicationCount={applicationCount}
                     maxApplicationsPerMonth={maxApplicationsPerMonth}
                     canApply={canApply}
+                    isSaved={isSaved}
+                    hasApplied={hasApplied}
+                    message={messages?.success || ""}
+                    error={messages?.error || ""}
                 />
             )}
         </main>

@@ -89,3 +89,28 @@ export const getSeekerApplications = async (seekerId, seekerEmail = "") => {
 
     return applications.map(makeApplication);
 };
+
+export const getRecruiterJobApplications = async (jobId) => {
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+
+    if (!serverUrl) {
+        throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
+    }
+
+    if (!jobId) {
+        return [];
+    }
+
+    const response = await fetch(`${serverUrl}/applications/job/${jobId}`, {
+        cache: "no-store",
+        headers: await getSecureFetchHeaders(),
+    });
+
+    if (!response.ok) {
+        return [];
+    }
+
+    const applications = await response.json();
+
+    return applications.map(makeApplication);
+};

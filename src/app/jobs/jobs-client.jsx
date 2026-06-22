@@ -1,29 +1,85 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import JobCard from "@/Components/Jobs/JobCard";
 
 const statusOptions = ["All", "active", "inactive", "closed", "draft"];
-
-const jobTypeOptions = [
-    "All",
-    "Full-time",
-    "Part-time",
-    "Remote",
-    "Contract",
-    "Internship",
-];
-
+const jobTypeOptions = ["All", "Full-time", "Part-time", "Remote", "Contract", "Internship"];
 const workModeOptions = ["All", "Remote", "On-site", "Hybrid"];
+const jobsPerPage = 4;
 
-const JobsClient = ({ jobs }) => {
-    const [searchTerm, setSearchTerm] = useState("");
-    const [selectedStatus, setSelectedStatus] = useState("All");
-    const [selectedJobType, setSelectedJobType] = useState("All");
-    const [selectedWorkMode, setSelectedWorkMode] = useState("All");
+function getSafeValue(value, allowedValues, fallbackValue) {
+    if (!value) {
+        return fallbackValue;
+    }
+
+    return allowedValues.includes(value) ? value : fallbackValue;
+}
+
+function buildQueryString(params) {
+    const searchParams = new URLSearchParams();
+
+    if (params.searchTerm) {
+        searchParams.set("search", params.searchTerm);
+    }
+
+    if (params.status && params.status !== "All") {
+        searchParams.set("status", params.status);
+    }
+
+    if (params.jobType && params.jobType !== "All") {
+        searchParams.set("type", params.jobType);
+    }
+
+    if (params.workMode && params.workMode !== "All") {
+        searchParams.set("mode", params.workMode);
+    }
+
+    if (params.page && params.page > 1) {
+        searchParams.set("page", String(params.page));
+    }
+
+    const queryString = searchParams.toString();
+
+    return queryString ? `?${queryString}` : "";
+}
+
+const JobsClient = ({ jobs, initialSearchParams }) => {
+    const router = useRouter();
+    const pathname = usePathname();
+    const currentSearchParams = useSearchParams();
+
+    const filters = useMemo(() => {
+        const urlSearchTerm = String(currentSearchParams.get("search") ?? initialSearchParams?.search ?? "");
+        const urlStatus = getSafeValue(
+            String(currentSearchParams.get("status") ?? initialSearchParams?.status ?? "All"),
+            statusOptions,
+            "All"
+        );
+        const urlJobType = getSafeValue(
+            String(currentSearchParams.get("type") ?? initialSearchParams?.type ?? "All"),
+            jobTypeOptions,
+            "All"
+        );
+        const urlWorkMode = getSafeValue(
+            String(currentSearchParams.get("mode") ?? initialSearchParams?.mode ?? "All"),
+            workModeOptions,
+            "All"
+        );
+        const urlPage = Number.parseInt(String(currentSearchParams.get("page") ?? initialSearchParams?.page ?? "1"), 10);
+
+        return {
+            searchTerm: urlSearchTerm,
+            status: urlStatus,
+            jobType: urlJobType,
+            workMode: urlWorkMode,
+            page: Number.isFinite(urlPage) && urlPage > 0 ? urlPage : 1,
+        };
+    }, [currentSearchParams, initialSearchParams]);
 
     const filteredJobs = useMemo(() => {
-        const text = searchTerm.trim().toLowerCase();
+        const text = filters.searchTerm.trim().toLowerCase();
 
         return jobs.filter((job) => {
             const locationText = job.location?.toLowerCase() || "";
@@ -44,20 +100,53 @@ const JobsClient = ({ jobs }) => {
                 job.location?.toLowerCase().includes(text);
 
             const matchesStatus =
-                selectedStatus === "All" || job.status === selectedStatus;
+                filters.status === "All" || job.status === filters.status;
 
             const matchesJobType =
-                selectedJobType === "All" || job.jobType === selectedJobType;
+                filters.jobType === "All" || job.jobType === filters.jobType;
 
             const matchesWorkMode =
-                selectedWorkMode === "All" ||
-                (selectedWorkMode === "Remote" && isRemote) ||
-                (selectedWorkMode === "Hybrid" && isHybrid) ||
-                (selectedWorkMode === "On-site" && isOnSite);
+                filters.workMode === "All" ||
+                (filters.workMode === "Remote" && isRemote) ||
+                (filters.workMode === "Hybrid" && isHybrid) ||
+                (filters.workMode === "On-site" && isOnSite);
 
             return matchesSearch && matchesStatus && matchesJobType && matchesWorkMode;
         });
-    }, [jobs, searchTerm, selectedStatus, selectedJobType, selectedWorkMode]);
+    }, [filters.jobType, filters.searchTerm, filters.status, filters.workMode, jobs]);
+
+    const totalPages = Math.max(1, Math.ceil(filteredJobs.length / jobsPerPage));
+    const currentPage = Math.min(filters.page, totalPages);
+    const startIndex = (currentPage - 1) * jobsPerPage;
+    const pageJobs = filteredJobs.slice(startIndex, startIndex + jobsPerPage);
+
+    function updateUrl(nextValues) {
+        const queryString = buildQueryString({
+            searchTerm: nextValues.searchTerm ?? filters.searchTerm,
+            status: nextValues.status ?? filters.status,
+            jobType: nextValues.jobType ?? filters.jobType,
+            workMode: nextValues.workMode ?? filters.workMode,
+            page: nextValues.page ?? 1,
+        });
+
+        router.replace(`${pathname}${queryString}`, { scroll: false });
+    }
+
+    function handleClearFilters() {
+        updateUrl({
+            searchTerm: "",
+            status: "All",
+            jobType: "All",
+            workMode: "All",
+            page: 1,
+        });
+    }
+
+    function goToPage(pageNumber) {
+        const safePage = Math.min(Math.max(1, pageNumber), totalPages);
+
+        updateUrl({ page: safePage });
+    }
 
     return (
         <main className="min-h-screen bg-black text-white">
@@ -83,8 +172,13 @@ const JobsClient = ({ jobs }) => {
                         </span>
                         <input
                             type="text"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
+                            value={filters.searchTerm}
+                            onChange={(e) =>
+                                updateUrl({
+                                    searchTerm: e.target.value,
+                                    page: 1,
+                                })
+                            }
                             placeholder="Title, company, category..."
                             className="rounded-xl border border-white/10 bg-[#17171c] px-4 py-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-cyan-400/40"
                         />
@@ -95,8 +189,13 @@ const JobsClient = ({ jobs }) => {
                             Status
                         </span>
                         <select
-                            value={selectedStatus}
-                            onChange={(e) => setSelectedStatus(e.target.value)}
+                            value={filters.status}
+                            onChange={(e) =>
+                                updateUrl({
+                                    status: e.target.value,
+                                    page: 1,
+                                })
+                            }
                             className="rounded-xl border border-white/10 bg-[#17171c] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
                         >
                             {statusOptions.map((status) => (
@@ -112,8 +211,13 @@ const JobsClient = ({ jobs }) => {
                             Job Type
                         </span>
                         <select
-                            value={selectedJobType}
-                            onChange={(e) => setSelectedJobType(e.target.value)}
+                            value={filters.jobType}
+                            onChange={(e) =>
+                                updateUrl({
+                                    jobType: e.target.value,
+                                    page: 1,
+                                })
+                            }
                             className="rounded-xl border border-white/10 bg-[#17171c] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
                         >
                             {jobTypeOptions.map((jobType) => (
@@ -129,8 +233,13 @@ const JobsClient = ({ jobs }) => {
                             Work Mode
                         </span>
                         <select
-                            value={selectedWorkMode}
-                            onChange={(e) => setSelectedWorkMode(e.target.value)}
+                            value={filters.workMode}
+                            onChange={(e) =>
+                                updateUrl({
+                                    workMode: e.target.value,
+                                    page: 1,
+                                })
+                            }
                             className="rounded-xl border border-white/10 bg-[#17171c] px-4 py-3 text-sm text-white outline-none focus:border-cyan-400/40"
                         >
                             {workModeOptions.map((workMode) => (
@@ -142,19 +251,14 @@ const JobsClient = ({ jobs }) => {
                     </label>
                 </div>
 
-                <div className="mb-6 flex items-center justify-between gap-4">
+                <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                     <p className="text-sm text-white/60">
-                        Showing {filteredJobs.length} of {jobs.length} jobs
+                        {filteredJobs.length} filtered jobs
                     </p>
 
                     <button
                         type="button"
-                        onClick={() => {
-                            setSearchTerm("");
-                            setSelectedStatus("All");
-                            setSelectedJobType("All");
-                            setSelectedWorkMode("All");
-                        }}
+                        onClick={handleClearFilters}
                         className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/5"
                     >
                         Clear filters
@@ -162,11 +266,50 @@ const JobsClient = ({ jobs }) => {
                 </div>
 
                 {filteredJobs.length > 0 ? (
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-                        {filteredJobs.map((job) => (
-                            <JobCard key={job._id} job={job} />
-                        ))}
-                    </div>
+                    <>
+                        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+                            {pageJobs.map((job) => (
+                                <JobCard key={job._id} job={job} />
+                            ))}
+                        </div>
+
+                        {totalPages > 1 ? (
+                            <div className="mt-8 flex flex-wrap items-center justify-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => goToPage(currentPage - 1)}
+                                    disabled={currentPage === 1}
+                                    className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Previous
+                                </button>
+
+                                {Array.from({ length: totalPages }, (_, index) => index + 1).map((pageNumber) => (
+                                    <button
+                                        key={pageNumber}
+                                        type="button"
+                                        onClick={() => goToPage(pageNumber)}
+                                        className={`min-w-11 rounded-xl border px-4 py-2 text-sm font-medium transition ${
+                                            pageNumber === currentPage
+                                                ? "border-cyan-400/30 bg-cyan-400/15 text-cyan-200"
+                                                : "border-white/10 text-white/70 hover:bg-white/5"
+                                        }`}
+                                    >
+                                        {pageNumber}
+                                    </button>
+                                ))}
+
+                                <button
+                                    type="button"
+                                    onClick={() => goToPage(currentPage + 1)}
+                                    disabled={currentPage === totalPages}
+                                    className="rounded-xl border border-white/10 px-4 py-2 text-sm font-medium text-white/80 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+                                >
+                                    Next
+                                </button>
+                            </div>
+                        ) : null}
+                    </>
                 ) : (
                     <div className="rounded-3xl border border-dashed border-white/15 bg-white/5 p-10 text-center text-white/70 shadow-sm">
                         No jobs matched your search and filters.

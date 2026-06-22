@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
+import { getRecruiterJobApplications } from "@/lib/api/applications";
 import { getRecruiterJobs } from "@/lib/api/jobs";
 import JobActions from "./job-actions";
 
@@ -12,6 +13,16 @@ const RecruiterJobs = async () => {
   const recruiterId = session?.user?.role === "recruiter" ? session.user.id : "";
   const recruiterName = session?.user?.name || "Recruiter";
   const jobs = recruiterId ? await getRecruiterJobs(recruiterId) : [];
+  const jobsWithApplications = await Promise.all(
+    jobs.map(async (job) => {
+      const applications = await getRecruiterJobApplications(job._id);
+
+      return {
+        ...job,
+        applications,
+      };
+    })
+  );
 
   const getStatusLabel = (status) => {
     const value = String(status || "pending").toLowerCase();
@@ -32,7 +43,7 @@ const RecruiterJobs = async () => {
         <div className="text-center py-10 border rounded-lg">
           <p className="text-gray-500">Please sign in as a recruiter first.</p>
         </div>
-      ) : jobs.length === 0 ? (
+      ) : jobsWithApplications.length === 0 ? (
         <div className="text-center py-10 border rounded-lg">
           <p className="text-gray-500">No jobs found yet.</p>
         </div>
@@ -56,7 +67,7 @@ const RecruiterJobs = async () => {
             </thead>
 
             <tbody>
-              {jobs.map((job, index) => (
+              {jobsWithApplications.map((job, index) => (
                 <tr key={job._id}>
                   <td className="p-3 border">{index + 1}</td>
                   <td className="p-3 border">{job.companyName || "N/A"}</td>
@@ -69,7 +80,7 @@ const RecruiterJobs = async () => {
                   <td className="p-3 border">{job.deadlineText}</td>
                   <td className="p-3 border">{job.createdAtText}</td>
                       <td className="p-3 border">
-                        <JobActions job={job} />
+                        <JobActions job={job} applications={job.applications} />
                       </td>
                 </tr>
               ))}

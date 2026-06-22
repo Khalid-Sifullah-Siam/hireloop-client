@@ -1,6 +1,15 @@
 import Link from "next/link";
+import { removeSavedJob, saveJob } from "@/lib/actions/saved-jobs";
 
-const JobDetailsView = ({ job, applicationCount = 0, canApply = false }) => {
+const JobDetailsView = ({
+    job,
+    applicationCount = 0,
+    canApply = false,
+    isSaved = false,
+    hasApplied = false,
+    message = "",
+    error = "",
+}) => {
     if (!job) {
         return (
             <main className="min-h-screen bg-slate-50 px-4 py-12">
@@ -137,20 +146,64 @@ const JobDetailsView = ({ job, applicationCount = 0, canApply = false }) => {
                                     </div>
                                 </div>
 
-                                <div className="mt-5 space-y-3 text-sm text-slate-600">
-                                    <p><span className="font-medium text-slate-900">Visibility:</span> {job.visibility}</p>
-                                    <p><span className="font-medium text-slate-900">Posted:</span> {job.createdAtText}</p>
-                                    <p><span className="font-medium text-slate-900">Updated:</span> {job.updatedAtText}</p>
-                                </div>
+                            <div className="mt-5 space-y-3 text-sm text-slate-600">
+                                <p><span className="font-medium text-slate-900">Visibility:</span> {job.visibility}</p>
+                                <p><span className="font-medium text-slate-900">Posted:</span> {job.createdAtText}</p>
+                                <p><span className="font-medium text-slate-900">Updated:</span> {job.updatedAtText}</p>
+                            </div>
 
-                             
+                            {message ? (
+                                <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                                    {message}
+                                </p>
+                            ) : null}
+
+                            {error ? (
+                                <p className="mt-5 rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
+                                    {error}
+                                </p>
+                            ) : null}
+
+                            {canApply && status === "approved" && !hasApplied ? (
+                                <div className="mt-6">
+                                    {isSaved ? (
+                                        <form action={removeSavedJob}>
+                                            <input type="hidden" name="jobId" value={job._id} />
+                                            <input type="hidden" name="returnTo" value={`/jobs/${job._id}?success=Job removed from saved jobs`} />
+                                            <button
+                                                type="submit"
+                                                className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+                                            >
+                                                Saved
+                                            </button>
+                                        </form>
+                                    ) : (
+                                        <form action={saveJob}>
+                                            <input type="hidden" name="jobId" value={job._id} />
+                                            <button
+                                                type="submit"
+                                                className="inline-flex w-full items-center justify-center rounded-full border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+                                            >
+                                                Save job
+                                            </button>
+                                        </form>
+                                    )}
+                                </div>
+                            ) : null}
+
+                            {hasApplied ? (
+                                <div className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                                    You already applied for this job. It is now in your applications.
+                                </div>
+                            ) : null}
+
                                 {canApply && status === "approved" ? (
                                     <div className="mt-6">
                                         <Link
                                             href={`/job/${job._id}/apply`}
                                             className="inline-flex w-full items-center justify-center rounded-full bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800"
                                         >
-                                            Apply now
+                                            {hasApplied ? "View apply page" : "Apply now"}
                                         </Link>
                                     </div>
                                 ) : (

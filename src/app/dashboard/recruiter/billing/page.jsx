@@ -4,20 +4,20 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { getUserPayments } from "@/lib/api/payments";
 
-export default async function SeekerBillingPage() {
+export default async function RecruiterBillingPage() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
   const user = session?.user;
 
   if (!user) {
-    redirect("/auth/signin?redirect=/dashboard/seeker/billing");
+    redirect("/auth/signin?redirect=/dashboard/recruiter/billing");
   }
 
   const payments = await getUserPayments(user.id, user.email);
 
   return (
-    <section className="mx-auto max-w-5xl space-y-6">
+    <section className="mx-auto max-w-5xl space-y-6 p-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wide">
@@ -27,7 +27,7 @@ export default async function SeekerBillingPage() {
             Billing information
           </h1>
           <p className="mt-2 text-sm">
-            View your seeker plan payment history and billing details.
+            View your recruiter plan payment history and billing details.
           </p>
         </div>
 
@@ -60,7 +60,7 @@ export default async function SeekerBillingPage() {
                   <p><span className="font-semibold text-slate-900">Started:</span> {payment.planStartedAtText}</p>
                   <p><span className="font-semibold text-slate-900">Expires:</span> {payment.planExpiresAtText}</p>
                   <p className="sm:col-span-2 break-all">
-                    <span className="font-semibold text-slate-900">Stripe session:</span> {payment.stripeSessionId}
+                    <span className="font-semibold text-slate-900">Stripe subscription:</span> {payment.stripeSubscriptionId}
                   </p>
                 </div>
               </div>

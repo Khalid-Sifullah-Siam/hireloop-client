@@ -4,7 +4,7 @@ import ProfileSettingsForm from "@/Components/Dashboard/ProfileSettingsForm";
 import { auth } from "@/lib/auth";
 import { getMyProfile } from "@/lib/api/profile";
 
-export default async function SeekerSettingsPage({ searchParams }) {
+export default async function RecruiterSettingsPage({ searchParams }) {
   const params = await searchParams;
   const session = await auth.api.getSession({
     headers: await headers(),
@@ -12,7 +12,7 @@ export default async function SeekerSettingsPage({ searchParams }) {
   const user = session?.user;
 
   if (!user) {
-    redirect("/auth/signin?redirect=/dashboard/seeker/settings");
+    redirect("/auth/signin?redirect=/dashboard/recruiter/settings");
   }
 
   const profile = await getMyProfile();
@@ -21,7 +21,7 @@ export default async function SeekerSettingsPage({ searchParams }) {
     <div className="p-6 text-white">
       <ProfileSettingsForm
         user={profile || user}
-        role="seeker"
+        role="recruiter"
         success={params?.success || ""}
         error={params?.error || ""}
       />

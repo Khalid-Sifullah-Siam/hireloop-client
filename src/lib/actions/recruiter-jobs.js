@@ -75,6 +75,46 @@ export async function updateRecruiterJob(jobId, payload) {
   if (!response.ok) {
     throw new Error(data?.message || "Failed to update job.");
   }
+  // Revalidate the jobs list and the specific job pages so updated info appears
+  revalidatePath("/dashboard/recruiter/jobs");
+  try {
+    revalidatePath(`/dashboard/recruiter/jobs/${jobId}`);
+  } catch (e) {
+    // ignore if route doesn't exist or can't be revalidated
+  }
+
+  try {
+    revalidatePath(`/job/${jobId}`);
+  } catch (e) {
+    // ignore if route doesn't exist or can't be revalidated
+  }
+  return data;
+}
+
+export async function updateApplicationStatus(applicationId, status) {
+  const recruiter = await getCurrentRecruiter();
+
+  if (!recruiter) {
+    throw new Error("Only recruiters can update applications.");
+  }
+
+  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+
+  if (!serverUrl) {
+    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
+  }
+
+  const response = await fetch(`${serverUrl}/applications/${applicationId}/status`, {
+    method: "PATCH",
+    headers: getBackendJsonHeaders(recruiter),
+    body: JSON.stringify({ status }),
+  });
+
+  const data = await readResponse(response);
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to update application status.");
+  }
 
   revalidatePath("/dashboard/recruiter/jobs");
   return data;
