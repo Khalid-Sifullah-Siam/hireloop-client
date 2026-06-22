@@ -53,6 +53,16 @@ export const auth = betterAuth({
     },
   },
   plugins: [
-    admin()
+    admin({
+      schema: {
+        user: {
+          fields: {
+            role: {
+              input: true,
+            },
+          },
+        },
+      },
+    })
   ]
 });
