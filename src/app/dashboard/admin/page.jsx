@@ -1,13 +1,9 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { Building2, ShieldCheck, Sparkles, Users, Briefcase } from "lucide-react";
-
-const adminHighlights = [
-  { label: "Pending companies", value: "14", icon: Building2 },
-  { label: "Approved listings", value: "128", icon: ShieldCheck },
-  { label: "Active users", value: "8.4k", icon: Users },
-  { label: "Jobs reviewed", value: "356", icon: Briefcase },
-];
+import { getAdminCompanies } from "@/lib/actions/admin-companies";
+import { getAdminJobs } from "@/lib/actions/admin-jobs";
+import { getAdminUsers } from "@/lib/actions/admin-users";
 
 const adminActions = [
   "Review company approvals",
@@ -21,6 +17,33 @@ export default async function AdminDashboardPage() {
   });
 
   const user = session?.user;
+  const [companies, jobs, users] = await Promise.all([
+    getAdminCompanies("all"),
+    getAdminJobs("all"),
+    getAdminUsers("all"),
+  ]);
+  const adminHighlights = [
+    {
+      label: "Pending companies",
+      value: companies.filter((company) => company.status === "pending").length,
+      icon: Building2,
+    },
+    {
+      label: "Pending jobs",
+      value: jobs.filter((job) => job.status === "pending").length,
+      icon: ShieldCheck,
+    },
+    {
+      label: "Active users",
+      value: users.filter((item) => item.status === "active" && !item.suspended && !item.banned).length,
+      icon: Users,
+    },
+    {
+      label: "Total jobs",
+      value: jobs.length,
+      icon: Briefcase,
+    },
+  ];
 
   return (
     <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#0f172a] px-6 py-8 text-white shadow-[0_30px_100px_rgba(15,23,42,0.35)] sm:px-8 sm:py-10">
@@ -41,7 +64,7 @@ export default async function AdminDashboardPage() {
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-white/5 p-5 backdrop-blur-sm">
-            <p className="text-sm text-white/60">Today's focus</p>
+            <p className="text-sm text-white/60">Today&apos;s focus</p>
             <p className="mt-2 text-lg font-semibold text-white">Approve, monitor, and keep quality high</p>
           </div>
         </div>

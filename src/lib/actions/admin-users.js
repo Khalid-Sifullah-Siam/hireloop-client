@@ -1,62 +1,36 @@
 'use server';
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-import { getBackendAuthHeaders, getBackendJsonHeaders } from "@/lib/server-auth-token";
-
-function getAdminApiBase() {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-  if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-  }
-
-  return `${serverUrl}/admin`;
-}
-
-async function getCurrentAdmin() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return null;
-  }
-
-  return session.user;
-}
+import { getDefaultPlanForRole } from "@/lib/plan-utils";
+import {
+  db,
+  getCurrentUserWithRole,
+  getIdFilters,
+  makeDocumentSafe,
+} from "@/lib/database-helpers";
 
 export async function getAdminUsers(role = "all") {
-  const admin = await getCurrentAdmin();
+  const admin = await getCurrentUserWithRole("admin");
 
   if (!admin) {
     return [];
   }
 
-  const query = role && role !== "all" ? `?role=${encodeURIComponent(role)}` : "";
-  const response = await fetch(`${getAdminApiBase()}/users${query}`, {
-    cache: "no-store",
-    headers: getBackendAuthHeaders(admin),
-  });
+  const databaseFilter =
+    role && role !== "all"
+      ? { role: String(role).toLowerCase() }
+      : {};
+  const users = await db
+    .collection("user")
+    .find(databaseFilter)
+    .sort({ createdAt: -1, _id: -1 })
+    .toArray();
 
-  if (!response.ok) {
-    return [];
-  }
-
-  return response.json();
-}
-
-async function readResponse(response) {
-  try {
-    return await response.json();
-  } catch {
-    return {};
-  }
+  return users.map(makeDocumentSafe);
 }
 
 export async function updateAdminUser(formData) {
-  const admin = await getCurrentAdmin();
+  const admin = await getCurrentUserWithRole("admin");
 
   if (!admin) {
     throw new Error("Only admins can update users.");
@@ -70,32 +44,57 @@ export async function updateAdminUser(formData) {
     throw new Error("User id and action are required.");
   }
 
-  const body = {};
+  const userFilter = { $or: getIdFilters(userId) };
+  const user = await db.collection("user").findOne(userFilter);
+
+  if (!user) {
+    throw new Error("User was not found.");
+  }
+
+  if (String(user._id) === String(admin.id || admin._id)) {
+    throw new Error("You cannot update your own admin account here.");
+  }
+
+  const updateData = {
+    updatedAt: new Date(),
+  };
 
   if (action === "role") {
-    body.role = value;
+    if (!["admin", "seeker", "recruiter"].includes(value)) {
+      throw new Error("Invalid user role.");
+    }
+
+    updateData.role = value;
+    updateData.plan = getDefaultPlanForRole(value);
   }
 
   if (action === "status") {
-    body.status = value;
+    if (!["pending", "active"].includes(value)) {
+      throw new Error("Invalid user status.");
+    }
+
+    updateData.status = value;
   }
 
   if (action === "suspend") {
-    body.suspended = value === "true";
+    const suspended = value === "true";
+    updateData.suspended = suspended;
+    updateData.banned = suspended;
+    updateData.banReason = suspended ? "Suspended by admin." : null;
+    updateData.banExpires = null;
   }
 
-  const response = await fetch(`${getAdminApiBase()}/users/${encodeURIComponent(userId)}`, {
-    method: "PATCH",
-    headers: getBackendJsonHeaders(admin),
-    body: JSON.stringify(body),
-  });
-
-  const data = await readResponse(response);
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Failed to update user.");
+  if (!["role", "status", "suspend"].includes(action)) {
+    throw new Error("Invalid user action.");
   }
+
+  await db.collection("user").updateOne(userFilter, { $set: updateData });
+  const updatedUser = await db.collection("user").findOne(userFilter);
 
   revalidatePath("/dashboard/admin/users");
-  return data;
+
+  return {
+    message: "User updated successfully.",
+    user: makeDocumentSafe(updatedUser),
+  };
 }

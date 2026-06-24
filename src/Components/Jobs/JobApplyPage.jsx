@@ -189,4 +189,3 @@ const JobApplyPage = ({ applicant, job }) => {
 };
 
 export default JobApplyPage;
-pplyPage;

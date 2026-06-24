@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "check:data": "node scripts/check-data.js"
   },
   "dependencies": {
     "@better-auth/mongo-adapter": "^1.6.14",

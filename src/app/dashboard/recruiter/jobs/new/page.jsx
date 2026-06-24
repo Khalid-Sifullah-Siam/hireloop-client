@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   createJob,
@@ -114,7 +114,6 @@ export default function NewJob() {
   const [isRemote, setIsRemote] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [selectedCompanyId, setSelectedCompanyId] = useState("");
-  const [company, setCompany] = useState(defaultCompany);
   const [activeJobCount, setActiveJobCount] = useState(0);
   const [planStatus, setPlanStatus] = useState({
     plan: "recruiter_free",
@@ -139,15 +138,10 @@ export default function NewJob() {
         if (companies.length > 0) {
           setCompanies(companies);
           setSelectedCompanyId(companies[0].id || "");
-          setCompany({
-            ...defaultCompany,
-            ...companies[0],
-            approved: companies[0].status === "approved",
-          });
         }
       } catch {
         if (isActive) {
-          setCompany(defaultCompany);
+          setCompanies([]);
         }
       }
     };
@@ -159,16 +153,20 @@ export default function NewJob() {
     };
   }, []);
 
-  useEffect(() => {
-    const nextCompany = companies.find((item) => item.id === selectedCompanyId);
+  const company = useMemo(() => {
+    const selectedCompany = companies.find(
+      (item) => item.id === selectedCompanyId
+    );
 
-    if (nextCompany) {
-      setCompany({
-        ...defaultCompany,
-        ...nextCompany,
-        approved: nextCompany.status === "approved",
-      });
+    if (!selectedCompany) {
+      return defaultCompany;
     }
+
+    return {
+      ...defaultCompany,
+      ...selectedCompany,
+      approved: selectedCompany.status === "approved",
+    };
   }, [companies, selectedCompanyId]);
 
   useEffect(() => {
@@ -270,10 +268,6 @@ export default function NewJob() {
     formData.append("companyApproved", company.approved);
     formData.append("status", "pending");
     formData.append("visibility", "public");
-
-    const data = Object.fromEntries(formData.entries());
-
-    console.log(data);
 
     const result = await createJob(formData);
 

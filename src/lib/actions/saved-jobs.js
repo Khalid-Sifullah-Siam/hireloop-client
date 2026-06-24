@@ -1,83 +1,96 @@
 'use server';
 
-import { headers } from "next/headers";
+import { ObjectId } from "mongodb";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-import { getBackendJsonHeaders } from "@/lib/server-auth-token";
-
-const getSavedJobsApiUrl = (path = "") => {
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-    if (!serverUrl) {
-        throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-    }
-
-    return `${serverUrl}/saved-jobs${path}`;
-};
-
-const getCurrentSeeker = async () => {
-    const session = await auth.api.getSession({
-        headers: await headers(),
-    });
-
-    if (!session?.user || session.user.role !== "seeker") {
-        return null;
-    }
-
-    return session.user;
-};
-
-const parseResponse = async (response) => {
-    try {
-        return await response.json();
-    } catch {
-        return {};
-    }
-};
+import {
+  db,
+  getCurrentActiveUserWithRole,
+  toText,
+} from "@/lib/database-helpers";
 
 export async function saveJob(formData) {
-    const seeker = await getCurrentSeeker();
-    const jobId = String(formData.get("jobId") || "");
+  const jobId = toText(formData.get("jobId"));
+  const seeker = await getCurrentActiveUserWithRole("seeker");
 
-    if (!seeker) {
-        redirect(`/auth/signin?redirect=/jobs/${jobId}`);
-    }
+  if (!seeker) {
+    redirect(`/auth/signin?redirect=/jobs/${jobId}`);
+  }
 
-    const response = await fetch(getSavedJobsApiUrl(), {
-        method: "POST",
-        headers: getBackendJsonHeaders(seeker),
-        body: JSON.stringify({ jobId }),
-    });
+  if (!ObjectId.isValid(jobId)) {
+    redirect("/jobs?error=Invalid job id");
+  }
 
-    const data = await parseResponse(response);
+  const oldApplication = await db.collection("applications").findOne({
+    seekerId: seeker.id,
+    jobId,
+  });
 
-    if (!response.ok) {
-        redirect(`/jobs/${jobId}?error=${encodeURIComponent(data?.message || "Failed to save job.")}`);
-    }
+  if (oldApplication) {
+    redirect(`/jobs/${jobId}?error=You already applied for this job`);
+  }
 
-    revalidatePath(`/jobs/${jobId}`);
-    revalidatePath(`/job/${jobId}`);
-    revalidatePath("/dashboard/seeker/saved-jobs");
-    redirect(`/jobs/${jobId}?success=Job saved successfully`);
+  const job = await db.collection("jobs").findOne({
+    _id: new ObjectId(jobId),
+    status: { $regex: /^approved$/i },
+  });
+
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=Job not found`);
+  }
+
+  const now = new Date();
+  const savedJob = {
+    seekerId: seeker.id,
+    seekerEmail: seeker.email || "",
+    jobId,
+    jobInfo: {
+      id: jobId,
+      title: job.jobTitle || job.title || "Untitled job",
+      companyName: job.companyName || job.company?.name || "N/A",
+      category: job.category || "N/A",
+      jobType: job.jobType || "N/A",
+      location: job.location || (job.isRemote ? "Remote" : "N/A"),
+      deadline: job.deadline || job.applicationDeadline || null,
+    },
+    savedAt: now,
+    updatedAt: now,
+  };
+
+  await db.collection("savedJobs").updateOne(
+    { seekerId: seeker.id, jobId },
+    {
+      $set: savedJob,
+      $setOnInsert: { createdAt: now },
+    },
+    { upsert: true }
+  );
+
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/job/${jobId}`);
+  revalidatePath("/dashboard/seeker/saved-jobs");
+  redirect(`/jobs/${jobId}?success=Job saved successfully`);
 }
 
 export async function removeSavedJob(formData) {
-    const seeker = await getCurrentSeeker();
-    const jobId = String(formData.get("jobId") || "");
-    const returnTo = String(formData.get("returnTo") || "/dashboard/seeker/saved-jobs");
+  const seeker = await getCurrentActiveUserWithRole("seeker");
+  const jobId = toText(formData.get("jobId"));
+  const returnTo = toText(formData.get("returnTo")) || "/dashboard/seeker/saved-jobs";
 
-    if (!seeker) {
-        redirect("/auth/signin");
-    }
+  if (!seeker) {
+    redirect("/auth/signin");
+  }
 
-    await fetch(getSavedJobsApiUrl(`/${jobId}`), {
-        method: "DELETE",
-        headers: getBackendJsonHeaders(seeker),
-    });
+  await db.collection("savedJobs").deleteMany({
+    seekerId: seeker.id,
+    $or: [
+      { jobId },
+      { "jobInfo.id": jobId },
+    ],
+  });
 
-    revalidatePath(`/jobs/${jobId}`);
-    revalidatePath(`/job/${jobId}`);
-    revalidatePath("/dashboard/seeker/saved-jobs");
-    redirect(returnTo);
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/job/${jobId}`);
+  revalidatePath("/dashboard/seeker/saved-jobs");
+  redirect(returnTo);
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { updateProfile } from "@/lib/actions/profile";
 
 const IMAGE_UPLOAD_API_KEY = process.env.NEXT_PUBLIC_IMAGE_UPLOAD_API;
@@ -140,7 +141,14 @@ export default function ProfileSettingsForm({ user, role, success = "", error = 
             <div className="mt-2 flex items-center gap-4">
               <label className="flex h-16 w-16 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-white/20 bg-white/4 text-white/60 transition hover:bg-white/8">
                 {uploadPreview ? (
-                  <img src={uploadPreview} alt="Profile preview" className="h-full w-full object-cover" />
+                  <Image
+                    src={uploadPreview}
+                    alt="Profile preview"
+                    width={64}
+                    height={64}
+                    unoptimized
+                    className="h-full w-full object-cover"
+                  />
                 ) : (
                   <span className="text-sm">Upload</span>
                 )}

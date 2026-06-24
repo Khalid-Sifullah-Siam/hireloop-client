@@ -1,116 +1,113 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { getBackendAuthHeaders } from "@/lib/server-auth-token";
+import { ObjectId } from "mongodb";
+import {
+  db,
+  getCurrentUser,
+  makeDocumentSafe,
+  toText,
+} from "@/lib/database-helpers";
 
-async function getCurrentUser() {
-    const session = await auth.api.getSession({
-        headers: await headers(),
-    });
+function formatDate(dateValue) {
+  if (!dateValue) {
+    return "N/A";
+  }
 
-    return session?.user || null;
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return "N/A";
+  }
+
+  return date.toISOString().slice(0, 10);
 }
 
-async function getSecureFetchHeaders() {
-    const user = await getCurrentUser();
+function makeApplication(application) {
+  const safeApplication = makeDocumentSafe(application);
+  const jobInfo = safeApplication.jobInfo || {};
+  const jobId =
+    jobInfo.id ||
+    safeApplication.jobId ||
+    safeApplication.job_id ||
+    "";
 
-    if (!user) {
-        return {};
-    }
-
-    return getBackendAuthHeaders(user);
+  return {
+    _id: safeApplication._id,
+    status: safeApplication.status || "submitted",
+    appliedAt: safeApplication.appliedAt || safeApplication.createdAt || null,
+    appliedAtText: formatDate(safeApplication.appliedAt || safeApplication.createdAt),
+    userInfo: safeApplication.userInfo || {},
+    jobInfo: {
+      ...jobInfo,
+      id: jobId,
+      title: jobInfo.title || safeApplication.jobTitle || "Untitled job",
+      companyName: jobInfo.companyName || safeApplication.companyName || "N/A",
+      jobType: jobInfo.jobType || safeApplication.jobType || "Full-time",
+      location: jobInfo.location || safeApplication.location || "",
+    },
+    applicationInfo: safeApplication.applicationInfo || {},
+  };
 }
 
-const formatDate = (dateValue) => {
-    if (!dateValue) {
-        return "N/A";
-    }
+export async function getSeekerApplications(seekerId, seekerEmail = "") {
+  const user = await getCurrentUser();
 
-    const date = new Date(dateValue);
+  if (
+    !user ||
+    user.role !== "seeker" ||
+    toText(user.id) !== toText(seekerId)
+  ) {
+    return [];
+  }
 
-    if (Number.isNaN(date.getTime())) {
-        return "N/A";
-    }
+  const filters = [
+    { seekerId: toText(seekerId) },
+    { "userInfo.id": toText(seekerId) },
+  ];
+  const email = toText(seekerEmail || user.email).toLowerCase();
 
-    return date.toISOString().slice(0, 10);
-};
+  if (email) {
+    filters.push({ "userInfo.email": email });
+    filters.push({ "applicationInfo.email": email });
+  }
 
-const makeApplication = (application) => {
-    const jobInfo = application.jobInfo || {};
-    const jobId = jobInfo.id || application.jobId || application.job_id || "";
+  const applications = await db.collection("applications").find({
+    $or: filters,
+  }).sort({
+    appliedAt: -1,
+    _id: -1,
+  }).toArray();
 
-    return {
-        _id: application._id?.toString(),
-        status: application.status || "submitted",
-        appliedAt: application.appliedAt || application.createdAt || null,
-        appliedAtText: formatDate(application.appliedAt || application.createdAt),
-        userInfo: application.userInfo || {},
-        jobInfo: {
-            ...jobInfo,
-            id: jobId,
-            title: jobInfo.title || application.jobTitle || "Untitled job",
-            companyName: jobInfo.companyName || application.companyName || "N/A",
-            jobType: jobInfo.jobType || application.jobType || "Full-time",
-            location: jobInfo.location || application.location || "",
-        },
-        applicationInfo: application.applicationInfo || {},
-    };
-};
+  return applications.map(makeApplication);
+}
 
-export const getSeekerApplications = async (seekerId, seekerEmail = "") => {
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+export async function getRecruiterJobApplications(jobId) {
+  const recruiter = await getCurrentUser();
 
-    if (!serverUrl) {
-        throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-    }
+  if (
+    !recruiter ||
+    recruiter.role !== "recruiter" ||
+    !ObjectId.isValid(toText(jobId))
+  ) {
+    return [];
+  }
 
-    if (!seekerId) {
-        return [];
-    }
+  const job = await db.collection("jobs").findOne({
+    _id: new ObjectId(toText(jobId)),
+  });
+  const ownerId = toText(job?.recruiterId || job?.company?.recruiterId);
 
-    const searchParams = new URLSearchParams();
+  if (!job || ownerId !== toText(recruiter.id)) {
+    return [];
+  }
 
-    if (seekerEmail) {
-        searchParams.set("email", seekerEmail);
-    }
+  const applications = await db.collection("applications").find({
+    $or: [
+      { jobId: toText(jobId) },
+      { "jobInfo.id": toText(jobId) },
+    ],
+  }).sort({
+    appliedAt: -1,
+    _id: -1,
+  }).toArray();
 
-    const queryString = searchParams.toString();
-    const apiUrl = `${serverUrl}/applications/seeker/${seekerId}${queryString ? `?${queryString}` : ""}`;
-
-    const response = await fetch(apiUrl, {
-        cache: "no-store",
-        headers: await getSecureFetchHeaders(),
-    });
-
-    if (!response.ok) {
-        return [];
-    }
-
-    const applications = await response.json();
-
-    return applications.map(makeApplication);
-};
-
-export const getRecruiterJobApplications = async (jobId) => {
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-    if (!serverUrl) {
-        throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-    }
-
-    if (!jobId) {
-        return [];
-    }
-
-    const response = await fetch(`${serverUrl}/applications/job/${jobId}`, {
-        cache: "no-store",
-        headers: await getSecureFetchHeaders(),
-    });
-
-    if (!response.ok) {
-        return [];
-    }
-
-    const applications = await response.json();
-
-    return applications.map(makeApplication);
-};
+  return applications.map(makeApplication);
+}

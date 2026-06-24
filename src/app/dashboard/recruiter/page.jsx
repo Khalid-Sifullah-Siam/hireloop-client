@@ -2,13 +2,7 @@ import DashboardStats from "@/Components/Dashboard/DashboardStats";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { ArrowUpRight, Briefcase, Sparkles, Target, Users } from "lucide-react";
-
-const recruiterStats = [
-  { title: "Total Job Posts", value: "48", iconName: "fileText" },
-  { title: "Total Applicants", value: "1,284", iconName: "users" },
-  { title: "Active Jobs", value: "18", iconName: "zap" },
-  { title: "Jobs Closed", value: "32", iconName: "checkCircle" },
-];
+import { db } from "@/lib/database-helpers";
 
 const recruiterPillars = [
   { label: "Create jobs faster", icon: Briefcase },
@@ -16,12 +10,66 @@ const recruiterPillars = [
   { label: "Keep hiring moving", icon: Target },
 ];
 
+async function getRecruiterStats(userId) {
+  if (!userId) {
+    return [
+      { title: "Total Job Posts", value: "0", iconName: "fileText" },
+      { title: "Total Applicants", value: "0", iconName: "users" },
+      { title: "Active Jobs", value: "0", iconName: "zap" },
+      { title: "Jobs Closed", value: "0", iconName: "checkCircle" },
+    ];
+  }
+
+  const jobs = await db.collection("jobs").find({
+    $or: [
+      { recruiterId: userId },
+      { "company.recruiterId": userId },
+    ],
+  }).toArray();
+  const jobIds = jobs.map((job) => job._id.toString());
+  const totalApplicants = jobIds.length > 0
+    ? await db.collection("applications").countDocuments({
+        $or: [
+          { jobId: { $in: jobIds } },
+          { "jobInfo.id": { $in: jobIds } },
+        ],
+      })
+    : 0;
+  const currentTime = Date.now();
+  const activeJobs = jobs.filter((job) => {
+    const status = String(job.status || "").toLowerCase();
+    const deadline = new Date(job.deadline || job.applicationDeadline || "");
+    const isExpired =
+      !Number.isNaN(deadline.getTime()) &&
+      deadline.getTime() < currentTime;
+
+    return ["approved", "active"].includes(status) && !isExpired;
+  }).length;
+  const closedJobs = jobs.filter((job) => {
+    const status = String(job.status || "").toLowerCase();
+    const deadline = new Date(job.deadline || job.applicationDeadline || "");
+    const isExpired =
+      !Number.isNaN(deadline.getTime()) &&
+      deadline.getTime() < currentTime;
+
+    return ["rejected", "closed", "expired"].includes(status) || isExpired;
+  }).length;
+
+  return [
+    { title: "Total Job Posts", value: String(jobs.length), iconName: "fileText" },
+    { title: "Total Applicants", value: String(totalApplicants), iconName: "users" },
+    { title: "Active Jobs", value: String(activeJobs), iconName: "zap" },
+    { title: "Jobs Closed", value: String(closedJobs), iconName: "checkCircle" },
+  ];
+}
+
 export default async function RecruiterDashboardHomePage() {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
 
   const user = session?.user;
+  const recruiterStats = await getRecruiterStats(user?.id);
 
   return (
     <section className="relative overflow-hidden rounded-[32px] border border-white/10 bg-[#08111f] px-6 py-8 text-white shadow-[0_30px_100px_rgba(8,17,31,0.4)] sm:px-8 sm:py-10">

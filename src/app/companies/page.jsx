@@ -1,27 +1,28 @@
 import Image from "next/image";
 import Link from "next/link";
+import {
+  db,
+  makeDocumentSafe,
+} from "@/lib/database-helpers";
 
-const getCompaniesApiUrl = () => {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+export const dynamic = "force-dynamic";
 
-  if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-  }
+async function loadCompanies() {
+  const companies = await db.collection("companies").find({
+    $or: [
+      { status: { $regex: /^approved$/i } },
+      { status: { $regex: /^active$/i } },
+      { status: { $exists: false } },
+      { status: null },
+      { status: "" },
+    ],
+  }).sort({
+    createdAt: -1,
+    _id: -1,
+  }).toArray();
 
-  return `${serverUrl}/companies`;
-};
-
-const loadCompanies = async () => {
-  const response = await fetch(getCompaniesApiUrl(), {
-    cache: "no-store",
-  });
-
-  if (!response.ok) {
-    return [];
-  }
-
-  return response.json();
-};
+  return companies.map(makeDocumentSafe);
+}
 
 export default async function CompaniesPage() {
   const companies = await loadCompanies();
@@ -35,13 +36,13 @@ export default async function CompaniesPage() {
           </p>
           <h1 className="mt-2 text-3xl font-semibold">Company list</h1>
           <p className="mt-3 max-w-2xl text-sm text-white/55">
-            Browse the companies recruiters have created in HireLoop.
+            Browse approved companies in HireLoop.
           </p>
         </div>
 
         {companies.length === 0 ? (
           <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/60">
-            No companies found yet.
+            No approved companies found yet.
           </div>
         ) : (
           <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
@@ -70,7 +71,9 @@ export default async function CompaniesPage() {
                   </div>
 
                   <div className="min-w-0">
-                    <h2 className="truncate text-lg font-semibold">{company.name || "Untitled company"}</h2>
+                    <h2 className="truncate text-lg font-semibold">
+                      {company.name || "Untitled company"}
+                    </h2>
                     <p className="text-sm text-white/50">
                       {company.industry || "N/A"} · {company.location || "N/A"}
                     </p>
@@ -85,8 +88,13 @@ export default async function CompaniesPage() {
                   <span>{company.employeeCount || "N/A"}</span>
                   {company.websiteUrl ? (
                     <Link
-                      href={company.websiteUrl.startsWith("http") ? company.websiteUrl : `https://${company.websiteUrl}`}
+                      href={
+                        company.websiteUrl.startsWith("http")
+                          ? company.websiteUrl
+                          : `https://${company.websiteUrl}`
+                      }
                       target="_blank"
+                      rel="noreferrer"
                       className="text-white transition hover:text-[#0a84ff]"
                     >
                       Visit website

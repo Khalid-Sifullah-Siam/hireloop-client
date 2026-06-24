@@ -4,30 +4,16 @@ import Image from "next/image";
 import { Card } from "@heroui/react";
 import { BriefcaseFill, Factory, PersonFill, Star } from "@gravity-ui/icons";
 
-const stats = [
-  {
-    icon: BriefcaseFill,
-    value: "50K",
-    label: "Active Jobs",
-  },
-  {
-    icon: Factory,
-    value: "12K",
-    label: "Companies",
-  },
-  {
-    icon: PersonFill,
-    value: "2M",
-    label: "Job Seekers",
-  },
-  {
-    icon: Star,
-    value: "97%",
-    label: "Satisfaction Rate",
-  },
-];
+const statIcons = [BriefcaseFill, Factory, PersonFill, Star];
 
-export default function StatsSection() {
+export default function StatsSection({ stats = [] }) {
+  const visibleStats = stats.map((stat, index) => ({
+    ...stat,
+    icon: statIcons[index] || Star,
+  }));
+  const jobSeekerCount =
+    stats.find((stat) => stat.label === "Job Seekers")?.value || "0";
+
   return (
     <section className="relative flex min-h-[520px] w-full flex-col items-center justify-center overflow-hidden bg-[#0a0a0f] py-28">
       <div className="pointer-events-none absolute inset-0 flex select-none items-start justify-center">
@@ -58,14 +44,14 @@ export default function StatsSection() {
 
       <div className="relative z-10 mx-auto flex w-full max-w-4xl flex-col items-center gap-10 px-4 pb-12 pt-44">
         <p className="max-w-sm text-center text-2xl font-light tracking-wide text-white/80">
-          Assisting over{" "}
-          <span className="font-semibold text-white">15,000 job seekers</span>
+          Assisting{" "}
+          <span className="font-semibold text-white">{jobSeekerCount} job seekers</span>
           <br />
           find their dream positions.
         </p>
 
         <div className="grid w-full grid-cols-2 gap-3 md:grid-cols-4">
-          {stats.map((stat) => (
+          {visibleStats.map((stat) => (
             <StatCard key={stat.label} stat={stat} />
           ))}
         </div>

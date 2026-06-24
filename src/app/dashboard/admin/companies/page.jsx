@@ -83,7 +83,8 @@ export default async function AdminCompaniesPage({ searchParams }) {
   const params = await searchParams;
   const activeFilter = String(params?.status || "all").toLowerCase();
   const companies = await getAdminCompanies(activeFilter);
-  const { pendingCount, approvedCount, rejectedCount } = buildStats(companies);
+  const allCompanies = await getAdminCompanies("all");
+  const { pendingCount, approvedCount, rejectedCount } = buildStats(allCompanies);
 
   return (
     <div className="space-y-8 text-white">

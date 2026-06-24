@@ -1,8 +1,14 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
+import Link from 'next/link'
 
 import { auth } from '@/lib/auth'
-import { getBackendAuthHeaders, getBackendJsonHeaders } from '@/lib/server-auth-token'
+import { getBackendAuthHeaders } from '@/lib/server-auth-token'
+import {
+  db,
+  getUserFilters,
+  toText,
+} from '@/lib/database-helpers'
 import { getPlanName } from '@/lib/plan-utils'
 
 export default async function Success({ searchParams }) {
@@ -64,42 +70,56 @@ export default async function Success({ searchParams }) {
     const planExpiresAt = new Date(planStartedAt)
     planExpiresAt.setDate(planExpiresAt.getDate() + 30)
 
-    if (serverUrl) {
-      await fetch(`${serverUrl}/users/plan`, {
-        method: 'PATCH',
-        headers: getBackendJsonHeaders(user),
-        cache: 'no-store',
-        body: JSON.stringify({
-          userId,
-          userEmail: customerEmail === 'your email' ? '' : customerEmail,
-          planId,
-          planStartedAt,
-          planExpiresAt,
-        }),
-      })
+    const userFilters = getUserFilters({
+      id: userId,
+      email: customerEmail === 'your email' ? user.email : customerEmail,
+    })
 
-      await fetch(`${serverUrl}/plans`, {
-        method: 'POST',
-        headers: getBackendJsonHeaders(user),
-        cache: 'no-store',
-        body: JSON.stringify({
-          userId,
-          userName: checkoutSession.customer_details?.name || '',
-          userEmail: customerEmail === 'your email' ? '' : customerEmail,
-          role: userRole,
-          planId,
-          planName,
-          stripeSessionId: checkoutSession.id,
-          stripeCustomerId: String(checkoutSession.customer || ''),
-          stripeSubscriptionId: String(checkoutSession.subscription || ''),
-          amountTotal: checkoutSession.amount_total || 0,
-          currency: checkoutSession.currency || '',
-          paymentStatus: checkoutSession.payment_status || '',
-          planStartedAt,
-          planExpiresAt,
-        }),
-      })
+    if (userFilters.length > 0) {
+      await db.collection('user').updateOne(
+        { $or: userFilters },
+        {
+          $set: {
+            plan: planId,
+            planStartedAt,
+            planExpiresAt,
+            updatedAt: new Date(),
+          },
+          $unset: {
+            planExpiredAt: '',
+          },
+        }
+      )
     }
+
+    const payment = {
+      userId,
+      userName: checkoutSession.customer_details?.name || user.name || '',
+      userEmail: customerEmail === 'your email' ? toText(user.email) : customerEmail,
+      role: userRole,
+      planId,
+      planName,
+      stripeSessionId: checkoutSession.id,
+      stripeCustomerId: String(checkoutSession.customer || ''),
+      stripeSubscriptionId: String(checkoutSession.subscription || ''),
+      amountTotal: checkoutSession.amount_total || 0,
+      currency: checkoutSession.currency || '',
+      paymentStatus: checkoutSession.payment_status || '',
+      planStartedAt,
+      planExpiresAt,
+      updatedAt: new Date(),
+    }
+
+    await db.collection('plansCollection').updateOne(
+      { stripeSessionId: checkoutSession.id },
+      {
+        $set: payment,
+        $setOnInsert: {
+          createdAt: new Date(),
+        },
+      },
+      { upsert: true }
+    )
   }
 
   return (
@@ -133,18 +153,18 @@ export default async function Success({ searchParams }) {
         </div>
 
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-          <a
+          <Link
             href="/plans"
             className="inline-flex items-center justify-center rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-gray-200"
           >
             Back to plans
-          </a>
-          <a
+          </Link>
+          <Link
             href="/jobs"
             className="inline-flex items-center justify-center rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
           >
             Go to jobs
-          </a>
+          </Link>
         </div>
       </section>
     </main>

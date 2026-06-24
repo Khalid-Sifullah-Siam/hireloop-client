@@ -1,92 +1,106 @@
 'use server';
 
-import { headers } from "next/headers";
+import { ObjectId } from "mongodb";
 import { redirect } from "next/navigation";
-import { auth } from "@/lib/auth";
-import { getSeekerApplications } from "@/lib/api/applications";
+import {
+  db,
+  getCurrentActiveUserWithRole,
+  toText,
+} from "@/lib/database-helpers";
 import { getSeekerApplicationLimit } from "@/lib/plan-utils";
 import { getFreshUserPlan } from "@/lib/user-plan-server";
-import { getBackendJsonHeaders } from "@/lib/server-auth-token";
-
-const getApplicationsApiUrl = () => {
-    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-    if (!serverUrl) {
-        throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-    }
-
-    return `${serverUrl}/applications`;
-};
-
-const getCurrentSeeker = async () => {
-    const session = await auth.api.getSession({
-        headers: await headers(),
-    });
-
-    if (!session?.user || session.user.role !== "seeker") {
-        return null;
-    }
-
-    return session.user;
-};
-
-const parseResponse = async (response) => {
-    try {
-        return await response.json();
-    } catch {
-        return {};
-    }
-};
 
 export async function applyForJob(formData) {
-    const seeker = await getCurrentSeeker();
+  const seeker = await getCurrentActiveUserWithRole("seeker");
 
-    if (!seeker) {
-        redirect("/auth/signin");
-    }
+  if (!seeker) {
+    redirect("/auth/signin");
+  }
 
-    const currentPlan = await getFreshUserPlan(seeker, "seeker_free");
-    const applications = await getSeekerApplications(seeker.id, seeker.email);
-    const applicationLimit = getSeekerApplicationLimit(currentPlan);
+  const jobId = toText(formData.get("jobId"));
+  const fullName = toText(formData.get("fullName"));
+  const email = toText(formData.get("email")).toLowerCase();
+  const resumeLink = toText(formData.get("resumeLink"));
 
-    if (applications.length >= applicationLimit) {
-        redirect("/plans?error=Your current plan has reached its monthly application limit");
-    }
+  if (!ObjectId.isValid(jobId)) {
+    redirect("/jobs?error=Invalid job id");
+  }
 
-    const payload = Object.fromEntries(formData.entries());
-    const applicationData = {
-        ...payload,
-        seekerId: seeker.id,
-        userInfo: {
-            id: seeker.id,
-            name: payload.fullName || seeker.name || "",
-            email: payload.email || seeker.email || "",
-        },
-        jobInfo: {
-            id: payload.jobId || "",
-            title: payload.jobTitle || "",
-            companyName: payload.companyName || "",
-            location: payload.location || "",
-        },
-        applicationInfo: {
-            resumeLink: payload.resumeLink || "",
-            portfolioLink: payload.portfolioLink || "",
-            message: payload.message || "",
-        },
-    };
+  if (!fullName || !email || !resumeLink) {
+    redirect(`/job/${jobId}/apply?error=Please fill in all required fields`);
+  }
 
-    const response = await fetch(getApplicationsApiUrl(), {
-        method: "POST",
-        headers: getBackendJsonHeaders(seeker),
-        body: JSON.stringify(applicationData),
-    });
+  const job = await db.collection("jobs").findOne({
+    _id: new ObjectId(jobId),
+    status: { $regex: /^approved$/i },
+  });
 
-    const data = await parseResponse(response);
+  if (!job) {
+    redirect(`/jobs/${jobId}?error=This job is not available`);
+  }
 
-    if (!response.ok) {
-        const message = data?.message || "Failed to submit application.";
-        redirect(`/dashboard/seeker/applications?error=${encodeURIComponent(message)}`);
-    }
+  const deadline = new Date(job.deadline || job.applicationDeadline || "");
 
-    redirect("/dashboard/seeker/applications?success=Application submitted successfully");
+  if (!Number.isNaN(deadline.getTime()) && deadline.getTime() < Date.now()) {
+    redirect(`/jobs/${jobId}?error=This job has expired`);
+  }
+
+  const oldApplication = await db.collection("applications").findOne({
+    seekerId: seeker.id,
+    jobId,
+  });
+
+  if (oldApplication) {
+    redirect(`/dashboard/seeker/applications?error=You already applied for this job`);
+  }
+
+  const currentPlan = await getFreshUserPlan(seeker, "seeker_free");
+  const applicationLimit = getSeekerApplicationLimit(currentPlan);
+  const applicationCount = await db.collection("applications").countDocuments({
+    seekerId: seeker.id,
+  });
+
+  if (applicationCount >= applicationLimit) {
+    redirect("/plans?error=Your current plan has reached its application limit");
+  }
+
+  const now = new Date();
+  const application = {
+    seekerId: seeker.id,
+    jobId,
+    userInfo: {
+      id: seeker.id,
+      name: fullName,
+      email,
+    },
+    jobInfo: {
+      id: jobId,
+      title: job.jobTitle || job.title || "Untitled job",
+      companyName: job.companyName || job.company?.name || "N/A",
+      category: job.category || "N/A",
+      jobType: job.jobType || "N/A",
+      location: job.location || (job.isRemote ? "Remote" : "N/A"),
+    },
+    applicationInfo: {
+      fullName,
+      email,
+      resumeLink,
+      portfolioLink: toText(formData.get("portfolioLink")),
+      message: toText(formData.get("message")),
+    },
+    status: "applied",
+    appliedAt: now,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  await Promise.all([
+    db.collection("applications").insertOne(application),
+    db.collection("savedJobs").deleteOne({
+      seekerId: seeker.id,
+      jobId,
+    }),
+  ]);
+
+  redirect("/dashboard/seeker/applications?success=Application submitted successfully");
 }

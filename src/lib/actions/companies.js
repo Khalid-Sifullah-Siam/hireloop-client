@@ -1,102 +1,118 @@
 'use server';
 
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { getBackendAuthHeaders, getBackendJsonHeaders } from "@/lib/server-auth-token";
+import {
+  db,
+  getCurrentActiveUserWithRole,
+  getCurrentUserWithRole,
+  makeDocumentSafe,
+  toText,
+} from "@/lib/database-helpers";
 
-function getCompaniesApiUrl() {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
+function buildCompanyData(companyData, recruiterId, existingCompany = null) {
+  const now = new Date();
 
-  if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-  }
-
-  return `${serverUrl}/companies`;
+  return {
+    id: existingCompany?.id || `cmp_${now.getTime()}`,
+    name: toText(companyData?.name),
+    industry: toText(companyData?.industry),
+    websiteUrl: toText(companyData?.websiteUrl),
+    location: toText(companyData?.location),
+    employeeCount: toText(companyData?.employeeCount),
+    description: toText(companyData?.description),
+    logo: toText(companyData?.logo),
+    status: existingCompany?.status || "pending",
+    recruiterId,
+    createdAt: existingCompany?.createdAt || now,
+    updatedAt: now,
+  };
 }
 
-async function readResponse(response) {
-  try {
-    return await response.json();
-  } catch {
-    return {};
+function validateCompany(company) {
+  const requiredFields = [
+    "name",
+    "industry",
+    "location",
+    "employeeCount",
+    "description",
+  ];
+  const missingField = requiredFields.find((field) => !toText(company[field]));
+
+  if (missingField) {
+    throw new Error(`${missingField} is required.`);
   }
-}
-
-async function getCurrentRecruiter() {
-  const requestHeaders = await headers();
-  const session = await auth.api.getSession({
-    headers: requestHeaders,
-  });
-
-  if (!session?.user || session.user.role !== "recruiter") {
-    return null;
-  }
-
-  return session.user;
 }
 
 export async function createCompany(companyData) {
-  const recruiter = await getCurrentRecruiter();
+  const recruiter = await getCurrentActiveUserWithRole("recruiter");
 
   if (!recruiter) {
-    throw new Error("Only recruiters can create companies.");
+    throw new Error("Only active recruiters can create companies.");
   }
 
-  const response = await fetch(`${getCompaniesApiUrl()}/recruiter/${recruiter.id}`, {
-    method: "POST",
-    headers: getBackendJsonHeaders(recruiter),
-    body: JSON.stringify(companyData),
+  const company = buildCompanyData(companyData, recruiter.id);
+  validateCompany(company);
+
+  const result = await db.collection("companies").insertOne(company);
+  const savedCompany = await db.collection("companies").findOne({
+    _id: result.insertedId,
   });
 
-  const data = await readResponse(response);
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Failed to save company.");
-  }
-
-  return data;
+  return {
+    success: true,
+    message: "Company saved successfully.",
+    company: makeDocumentSafe(savedCompany),
+  };
 }
 
 export async function updateCompany(companyData) {
-  const recruiter = await getCurrentRecruiter();
+  const recruiter = await getCurrentActiveUserWithRole("recruiter");
 
   if (!recruiter) {
-    throw new Error("Only recruiters can update companies.");
+    throw new Error("Only active recruiters can update companies.");
   }
 
-  const response = await fetch(
-    `${getCompaniesApiUrl()}/recruiter/${recruiter.id}/${companyData.id}`,
-    {
-      method: "PATCH",
-      headers: getBackendJsonHeaders(recruiter),
-      body: JSON.stringify(companyData),
-    }
+  const companyId = toText(companyData?.id);
+  const existingCompany = await db.collection("companies").findOne({
+    id: companyId,
+    recruiterId: recruiter.id,
+  });
+
+  if (!existingCompany) {
+    throw new Error("Company was not found.");
+  }
+
+  const company = buildCompanyData(companyData, recruiter.id, existingCompany);
+  validateCompany(company);
+
+  await db.collection("companies").updateOne(
+    { _id: existingCompany._id },
+    { $set: company }
   );
 
-  const data = await readResponse(response);
+  const savedCompany = await db.collection("companies").findOne({
+    _id: existingCompany._id,
+  });
 
-  if (!response.ok) {
-    throw new Error(data?.message || "Failed to update company.");
-  }
-
-  return data;
+  return {
+    success: true,
+    message: "Company updated successfully.",
+    company: makeDocumentSafe(savedCompany),
+  };
 }
 
 export async function getCompanies() {
-  const recruiter = await getCurrentRecruiter();
+  const recruiter = await getCurrentUserWithRole("recruiter");
 
   if (!recruiter) {
     return [];
   }
 
-  const response = await fetch(`${getCompaniesApiUrl()}/recruiter/${recruiter.id}`, {
-    cache: "no-store",
-    headers: getBackendAuthHeaders(recruiter),
-  });
+  const companies = await db.collection("companies").find({
+    recruiterId: recruiter.id,
+  }).sort({
+    createdAt: -1,
+    _id: -1,
+  }).toArray();
 
-  if (!response.ok) {
-    return [];
-  }
-
-  return response.json();
+  return companies.map(makeDocumentSafe);
 }

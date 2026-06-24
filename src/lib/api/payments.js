@@ -1,24 +1,9 @@
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { getBackendAuthHeaders } from "@/lib/server-auth-token";
-
-async function getCurrentUser() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  return session?.user || null;
-}
-
-async function getSecureFetchHeaders() {
-  const user = await getCurrentUser();
-
-  if (!user) {
-    return {};
-  }
-
-  return getBackendAuthHeaders(user);
-}
+import {
+  db,
+  getCurrentUser,
+  makeDocumentSafe,
+  toText,
+} from "@/lib/database-helpers";
 
 function formatDate(dateValue) {
   if (!dateValue) {
@@ -61,55 +46,54 @@ function makePayment(payment) {
   };
 }
 
-function getServerUrl() {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-  if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-  }
-
-  return serverUrl;
-}
-
 export async function getAllPayments() {
-  const response = await fetch(`${getServerUrl()}/plans/payments`, {
-    cache: "no-store",
-    headers: await getSecureFetchHeaders(),
-  });
+  const user = await getCurrentUser();
 
-  if (!response.ok) {
+  if (!user || user.role !== "admin") {
     return [];
   }
 
-  const payments = await response.json();
+  const payments = await db.collection("plansCollection").find({}).sort({
+    createdAt: -1,
+    _id: -1,
+  }).toArray();
 
-  return payments.map(makePayment);
+  return payments.map((payment) => makePayment(makeDocumentSafe(payment)));
 }
 
 export async function getUserPayments(userId, userEmail = "") {
-  if (!userId) {
+  const user = await getCurrentUser();
+
+  if (!user || !userId) {
     return [];
   }
 
-  const searchParams = new URLSearchParams();
+  const isAdmin = user.role === "admin";
+  const isSameUser =
+    toText(user.id) === toText(userId) ||
+    toText(user.email).toLowerCase() === toText(userEmail).toLowerCase();
 
-  if (userEmail) {
-    searchParams.set("email", userEmail);
-  }
-
-  const queryString = searchParams.toString();
-  const apiUrl = `${getServerUrl()}/plans/user/${userId}${queryString ? `?${queryString}` : ""}`;
-
-  const response = await fetch(apiUrl, {
-    cache: "no-store",
-    headers: await getSecureFetchHeaders(),
-  });
-
-  if (!response.ok) {
+  if (!isAdmin && !isSameUser) {
     return [];
   }
 
-  const payments = await response.json();
+  const filters = [{ userId: toText(userId) }];
+  const email = toText(userEmail).toLowerCase();
 
-  return payments.map(makePayment);
+  if (email) {
+    filters.push({ userEmail: email });
+  }
+
+  if (filters.length === 0) {
+    return [];
+  }
+
+  const payments = await db.collection("plansCollection").find({
+    $or: filters,
+  }).sort({
+    createdAt: -1,
+    _id: -1,
+  }).toArray();
+
+  return payments.map((payment) => makePayment(makeDocumentSafe(payment)));
 }

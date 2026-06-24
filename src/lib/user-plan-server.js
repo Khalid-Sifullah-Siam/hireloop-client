@@ -1,14 +1,11 @@
-import { getBackendJsonHeaders } from "@/lib/server-auth-token";
-
-const getUsersApiUrl = () => {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-  if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-  }
-
-  return `${serverUrl}/users`;
-};
+import {
+  db,
+  findUserDocument,
+  getUserFilters,
+  makeDocumentSafe,
+  toText,
+} from "@/lib/database-helpers";
+import { getDefaultPlanForRole } from "@/lib/plan-utils";
 
 export function getPlanExpireDate() {
   const expireDate = new Date();
@@ -25,7 +22,7 @@ export async function getFreshUserPlan(user, fallbackPlan = "seeker_free") {
 
 export async function getFreshUserAccountStatus(user, fallbackPlan = "seeker_free") {
   const planStatus = await getFreshUserPlanStatus(user, fallbackPlan);
-  const status = String(planStatus.status || "pending").toLowerCase();
+  const status = toText(planStatus.status || "pending").toLowerCase();
   const suspended = Boolean(planStatus.suspended);
 
   return {
@@ -41,34 +38,50 @@ export async function getFreshUserPlanStatus(user, fallbackPlan = "seeker_free")
       plan: fallbackPlan,
       planExpiresAt: null,
       isExpired: false,
+      status: "pending",
+      suspended: false,
     };
   }
 
-  if (!user.id && !user.email) {
-    return {
-      plan: user.plan || fallbackPlan,
-      planExpiresAt: user.planExpiresAt || null,
-      isExpired: false,
-    };
+  const savedUser = await findUserDocument(user);
+  const currentUser = savedUser || user;
+  const role = currentUser.role || user.role;
+  const freePlan = getDefaultPlanForRole(role);
+  const expireTime = currentUser.planExpiresAt
+    ? new Date(currentUser.planExpiresAt).getTime()
+    : null;
+  const isExpired =
+    Number.isFinite(expireTime) &&
+    expireTime <= Date.now();
+
+  if (isExpired && savedUser) {
+    const filters = getUserFilters(user);
+
+    await db.collection("user").updateOne(
+      { $or: filters },
+      {
+        $set: {
+          plan: freePlan,
+          planExpiredAt: new Date(),
+          updatedAt: new Date(),
+        },
+        $unset: {
+          planExpiresAt: "",
+          planStartedAt: "",
+        },
+      }
+    );
   }
 
-  const response = await fetch(`${getUsersApiUrl()}/plan-status`, {
-    method: "POST",
-    headers: getBackendJsonHeaders(user),
-    cache: "no-store",
-    body: JSON.stringify({
-      user,
-      fallbackPlan,
-    }),
-  });
-
-  if (!response.ok) {
-    return {
-      plan: user.plan || fallbackPlan,
-      planExpiresAt: user.planExpiresAt || null,
-      isExpired: false,
-    };
-  }
-
-  return response.json();
+  return {
+    plan: isExpired
+      ? freePlan
+      : currentUser.plan || fallbackPlan,
+    planExpiresAt: isExpired
+      ? null
+      : makeDocumentSafe(currentUser.planExpiresAt || null),
+    isExpired,
+    status: toText(currentUser.status) || "pending",
+    suspended: Boolean(currentUser.suspended || currentUser.banned),
+  };
 }

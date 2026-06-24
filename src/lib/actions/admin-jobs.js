@@ -1,43 +1,20 @@
 'use server';
 
-import { headers } from "next/headers";
+import { ObjectId } from "mongodb";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-import { getBackendAuthHeaders, getBackendJsonHeaders } from "@/lib/server-auth-token";
-
-function getAdminApiBase() {
-  const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL;
-
-  if (!serverUrl) {
-    throw new Error("NEXT_PUBLIC_SERVER_URL is missing from your environment variables.");
-  }
-
-  return `${serverUrl}/admin`;
-}
-
-async function getCurrentAdmin() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session?.user || session.user.role !== "admin") {
-    return null;
-  }
-
-  return session.user;
-}
-
-async function readResponse(response) {
-  try {
-    return await response.json();
-  } catch {
-    return {};
-  }
-}
+import {
+  db,
+  getCurrentUserWithRole,
+  makeDocumentSafe,
+} from "@/lib/database-helpers";
 
 function getJobStatus(job) {
   const status = String(job.status || "").trim().toLowerCase();
   const deadlineValue = job.deadline || job.applicationDeadline;
+
+  if (status === "pending" || status === "rejected") {
+    return status;
+  }
 
   if (deadlineValue) {
     const deadlineDate = new Date(deadlineValue);
@@ -47,34 +24,64 @@ function getJobStatus(job) {
     }
   }
 
-  if (status === "approved" || status === "pending" || status === "rejected" || status === "expired") {
+  if (status === "approved" || status === "expired") {
     return status;
   }
 
   return status || "pending";
 }
 
+function getAdminJobData(job) {
+  if (!job.pendingUpdate) {
+    return job;
+  }
+
+  return {
+    ...job,
+    ...job.pendingUpdate,
+    _id: job._id,
+    status: job.status,
+    isPendingUpdate: true,
+  };
+}
+
 export async function getAdminJobs(status = "all") {
-  const admin = await getCurrentAdmin();
+  const admin = await getCurrentUserWithRole("admin");
 
   if (!admin) {
     return [];
   }
 
-  const response = await fetch(`${getAdminApiBase()}/jobs`, {
-    cache: "no-store",
-    headers: getBackendAuthHeaders(admin),
-  });
+  const jobs = await db
+    .collection("jobs")
+    .find({})
+    .sort({ createdAt: -1, _id: -1 })
+    .toArray();
+  const users = await db
+    .collection("user")
+    .find({})
+    .project({ id: 1, email: 1 })
+    .toArray();
+  const emailByUserId = new Map();
 
-  if (!response.ok) {
-    return [];
+  for (const user of users) {
+    emailByUserId.set(user._id.toString(), user.email || "");
+
+    if (user.id) {
+      emailByUserId.set(String(user.id), user.email || "");
+    }
   }
 
-  const jobs = await response.json();
-  const normalizedJobs = jobs.map((job) => ({
-    ...job,
-    status: getJobStatus(job),
-  }));
+  const normalizedJobs = jobs.map((job) => {
+    const adminJob = getAdminJobData(job);
+
+    return {
+      ...makeDocumentSafe(adminJob),
+      status: getJobStatus(job),
+      recruiterEmail:
+        emailByUserId.get(String(job.recruiterId || job.company?.recruiterId || "")) || "N/A",
+    };
+  });
 
   if (status && status !== "all") {
     return normalizedJobs.filter((job) => job.status === status);
@@ -84,36 +91,18 @@ export async function getAdminJobs(status = "all") {
 }
 
 export async function getAdminJobStats() {
-  const admin = await getCurrentAdmin();
+  const jobs = await getAdminJobs("all");
 
-  if (!admin) {
-    return {
-      pendingCount: 0,
-      approvedCount: 0,
-      rejectedCount: 0,
-      expiredCount: 0,
-    };
-  }
-
-  const response = await fetch(`${getAdminApiBase()}/jobs/stats`, {
-    cache: "no-store",
-    headers: getBackendAuthHeaders(admin),
-  });
-
-  if (!response.ok) {
-    return {
-      pendingCount: 0,
-      approvedCount: 0,
-      rejectedCount: 0,
-      expiredCount: 0,
-    };
-  }
-
-  return response.json();
+  return {
+    pendingCount: jobs.filter((job) => job.status === "pending").length,
+    approvedCount: jobs.filter((job) => job.status === "approved").length,
+    rejectedCount: jobs.filter((job) => job.status === "rejected").length,
+    expiredCount: jobs.filter((job) => job.status === "expired").length,
+  };
 }
 
 export async function updateAdminJobStatus(formData) {
-  const admin = await getCurrentAdmin();
+  const admin = await getCurrentUserWithRole("admin");
 
   if (!admin) {
     throw new Error("Only admins can update job status.");
@@ -122,22 +111,75 @@ export async function updateAdminJobStatus(formData) {
   const jobId = String(formData.get("jobId") || "").trim();
   const status = String(formData.get("status") || "").trim().toLowerCase();
 
-  if (!jobId || !status) {
+  if (!ObjectId.isValid(jobId) || !status) {
     throw new Error("Job id and status are required.");
   }
 
-  const response = await fetch(`${getAdminApiBase()}/jobs/${jobId}/status`, {
-    method: "PATCH",
-    headers: getBackendJsonHeaders(admin),
-    body: JSON.stringify({ status }),
-  });
-
-  const data = await readResponse(response);
-
-  if (!response.ok) {
-    throw new Error(data?.message || "Failed to update job status.");
+  if (!["pending", "approved", "rejected"].includes(status)) {
+    throw new Error("Invalid job status.");
   }
 
+  const jobObjectId = new ObjectId(jobId);
+  const existingJob = await db.collection("jobs").findOne({
+    _id: jobObjectId,
+  });
+
+  if (!existingJob) {
+    throw new Error("Job was not found.");
+  }
+
+  if (existingJob.pendingUpdate && status === "approved") {
+    await db.collection("jobs").updateOne(
+      { _id: jobObjectId },
+      {
+        $set: {
+          ...existingJob.pendingUpdate,
+          status: "approved",
+          createdAt: existingJob.createdAt || existingJob.pendingUpdate.createdAt,
+          updatedAt: new Date(),
+        },
+        $unset: {
+          pendingUpdate: "",
+          previousStatus: "",
+        },
+      }
+    );
+  } else if (existingJob.pendingUpdate && status === "rejected") {
+    await db.collection("jobs").updateOne(
+      { _id: jobObjectId },
+      {
+        $set: {
+          status: existingJob.previousStatus || "approved",
+          updatedAt: new Date(),
+        },
+        $unset: {
+          pendingUpdate: "",
+          previousStatus: "",
+        },
+      }
+    );
+  } else {
+    await db.collection("jobs").updateOne(
+      { _id: jobObjectId },
+      {
+        $set: {
+          status,
+          updatedAt: new Date(),
+        },
+      }
+    );
+  }
+
+  const updatedJob = await db.collection("jobs").findOne({ _id: jobObjectId });
+
   revalidatePath("/dashboard/admin/jobs");
-  return data;
+  revalidatePath("/dashboard/recruiter/jobs");
+  revalidatePath("/jobs");
+  revalidatePath(`/jobs/${jobId}`);
+  revalidatePath(`/job/${jobId}`);
+
+  return {
+    message: "Job status updated successfully.",
+    job: makeDocumentSafe(updatedJob),
+  };
 }
