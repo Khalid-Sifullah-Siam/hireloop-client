@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import Link from "next/link";
 
-import { Card, Input, Button, Label } from "@heroui/react";
+import { Card, Input, Button } from "@heroui/react";
 
 import {
   Person,
@@ -15,7 +15,6 @@ import {
 } from "@gravity-ui/icons";
 
 import { authClient } from "@/lib/auth-client";
-import { getDefaultPlanForRole } from "@/lib/plan-utils";
 
 const initialSignupForm = {
   name: "",
@@ -53,10 +52,6 @@ export default function SignupPage() {
     updateFormField(event.target.name, event.target.value);
   };
 
-  const handleRoleChange = (event) => {
-    updateFormField("role", event.target.value);
-  };
-
   const handleSignup = async (event) => {
     event.preventDefault();
 
@@ -74,7 +69,6 @@ export default function SignupPage() {
         email: formData.email.trim(),
         password: formData.password,
         role: formData.role,
-        plan: getDefaultPlanForRole(formData.role),
       });
 
       if (response.error) {
@@ -176,34 +170,36 @@ export default function SignupPage() {
 
             {/* ROLE */}
             <div className="w-[90%] mx-auto flex flex-col gap-3">
-              <Label className="text-gray-300">
+              <p className="text-sm text-gray-300">
                 Select Role
-              </Label>
+              </p>
 
-              <div className="flex gap-6">
-                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="seeker"
-                    checked={formData.role === "seeker"}
-                    onChange={handleRoleChange}
-                    className="accent-white"
-                  />
-                  <span>Job Seeker</span>
-                </label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => updateFormField("role", "seeker")}
+                  aria-pressed={formData.role === "seeker"}
+                  className={`rounded-lg border px-4 py-3 text-sm transition ${
+                    formData.role === "seeker"
+                      ? "border-white bg-white text-black"
+                      : "border-white/20 text-gray-300 hover:border-white/50"
+                  }`}
+                >
+                  Job Seeker
+                </button>
 
-                <label className="flex items-center gap-2 text-gray-300 cursor-pointer">
-                  <input
-                    type="radio"
-                    name="role"
-                    value="recruiter"
-                    checked={formData.role === "recruiter"}
-                    onChange={handleRoleChange}
-                    className="accent-white"
-                  />
-                  <span>Recruiter</span>
-                </label>
+                <button
+                  type="button"
+                  onClick={() => updateFormField("role", "recruiter")}
+                  aria-pressed={formData.role === "recruiter"}
+                  className={`rounded-lg border px-4 py-3 text-sm transition ${
+                    formData.role === "recruiter"
+                      ? "border-white bg-white text-black"
+                      : "border-white/20 text-gray-300 hover:border-white/50"
+                  }`}
+                >
+                  Recruiter
+                </button>
               </div>
             </div>
 

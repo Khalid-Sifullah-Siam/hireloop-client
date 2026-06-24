@@ -1,9 +1,11 @@
 import { betterAuth } from "better-auth";
+import { APIError, createAuthMiddleware } from "better-auth/api";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { client, db } from "@/lib/db";
-import { admin } from "better-auth/plugins";
+import { getDefaultPlanForRole } from "@/lib/plan-utils";
 
 const defaultUserRole = "seeker";
+const allowedSignupRoles = ["seeker", "recruiter"];
 
 export const auth = betterAuth({
   database: mongodbAdapter(db, {
@@ -24,7 +26,7 @@ export const auth = betterAuth({
       },
       plan: {
         type: "string",
-        input: true,
+        input: false,
         required: true,
         defaultValue: "seeker_free",
       },
@@ -52,17 +54,52 @@ export const auth = betterAuth({
       },
     },
   },
-  plugins: [
-    admin({
-      schema: {
-        user: {
-          fields: {
-            role: {
-              input: true,
-            },
+
+  hooks: {
+    before: createAuthMiddleware(async (context) => {
+      if (context.path !== "/sign-up/email") {
+        return;
+      }
+
+      const selectedRole = String(context.body?.role || "")
+        .trim()
+        .toLowerCase();
+
+      if (!allowedSignupRoles.includes(selectedRole)) {
+        throw new APIError("BAD_REQUEST", {
+          message: "Please select Job Seeker or Recruiter.",
+        });
+      }
+
+      return {
+        context: {
+          ...context,
+          body: {
+            ...context.body,
+            role: selectedRole,
           },
         },
+      };
+    }),
+  },
+
+  databaseHooks: {
+    user: {
+      create: {
+        before: async (user) => {
+          const selectedRole = allowedSignupRoles.includes(user.role)
+            ? user.role
+            : defaultUserRole;
+
+          return {
+            data: {
+              ...user,
+              role: selectedRole,
+              plan: getDefaultPlanForRole(selectedRole),
+            },
+          };
+        },
       },
-    })
-  ]
+    },
+  },
 });
