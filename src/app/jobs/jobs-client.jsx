@@ -142,6 +142,8 @@ const JobsClient = ({ jobs, initialSearchParams }) => {
         });
     }
 
+
+    
     function goToPage(pageNumber) {
         const safePage = Math.min(Math.max(1, pageNumber), totalPages);
 
