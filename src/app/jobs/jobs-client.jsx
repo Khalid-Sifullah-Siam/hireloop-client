@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import JobCard from "@/Components/Jobs/JobCard";
 
-const statusOptions = ["All", "active", "inactive", "closed", "draft"];
+const statusOptions = ["All", "approved", "pending", "expired"];
 const jobTypeOptions = ["All", "Full-time", "Part-time", "Remote", "Contract", "Internship"];
 const workModeOptions = ["All", "Remote", "On-site", "Hybrid"];
 const jobsPerPage = 4;
@@ -132,6 +132,7 @@ const JobsClient = ({ jobs, initialSearchParams }) => {
         router.replace(`${pathname}${queryString}`, { scroll: false });
     }
 
+    
     function handleClearFilters() {
         updateUrl({
             searchTerm: "",

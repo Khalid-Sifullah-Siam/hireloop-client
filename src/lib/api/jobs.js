@@ -51,7 +51,7 @@ const getJobStatus = (job) => {
     }
 
     if (status === "active") {
-        return "pending";
+        return "approved";
     }
 
     if (status === "approved" || status === "pending" || status === "rejected" || status === "expired") {
