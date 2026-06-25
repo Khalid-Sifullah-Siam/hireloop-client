@@ -12,8 +12,8 @@ A modern, role-based job platform that connects job seekers, recruiters, and adm
 [![MongoDB](https://img.shields.io/badge/MongoDB-7-47A248?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
 [![Vercel](https://img.shields.io/badge/Deployed_on-Vercel-black?style=for-the-badge&logo=vercel)](https://hireloop-client-six.vercel.app)
 
-[View Live Website](https://hireloop-client-six.vercel.app) Â·
-[Client Repository](https://github.com/Khalid-Sifullah-Siam/hireloop-client) Â·
+[View Live Website](https://hireloop-client-six.vercel.app) 
+[Client Repository](https://github.com/Khalid-Sifullah-Siam/hireloop-client) 
 [Server Repository](https://github.com/Khalid-Sifullah-Siam/hireloop-server)
 
 </div>
